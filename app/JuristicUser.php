@@ -8,13 +8,16 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
-class User extends Authenticatable
+class JuristicUser extends Authenticatable
 {
     use HasApiTokens, Notifiable, SoftDeletes;
 
-    protected $dates = ['deleted_at'];
+    protected $dates = ['jusr_deleted_at'];
+    const DELETED_AT = 'jusr_deleted_at';
+    const CREATED_AT = 'jusr_created_at';
+    const UPDATED_AT = 'jusr_updated_at';
 
-    protected $table = 'users';
+    protected $table = 'juristic_users';
 
     protected $primaryKey = 'id';
 
@@ -24,16 +27,9 @@ class User extends Authenticatable
      * @var array
      */
     protected $fillable = [
-        'first_name', 
-        'middle_name', 
-        'first_surname', 
-        'second_surname', 
-        'email', 
-        'username', 
-        'password',
-        'address',
-        'phone',
-        'type',
+        'jusr_rif','jusr_user', 'jusr_company',
+        'jusr_address', 'jusr_phone', 'jusr_email',
+        'password', 'activation_token'
     ];
 
     /**
@@ -42,7 +38,7 @@ class User extends Authenticatable
      * @var array
      */
     protected $hidden = [
-        'password', 'remember_token', 'activation_token'
+        'password', 'remember_token', 'activation_token',
     ];
 
     /**
