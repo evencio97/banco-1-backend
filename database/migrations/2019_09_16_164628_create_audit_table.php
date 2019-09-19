@@ -16,7 +16,7 @@ class CreateAuditTable extends Migration
         Schema::create('audit', function (Blueprint $table) {
             $table->bigIncrements('adt_id');
             $table->unsignedBigInteger('adt_user');
-            $table->unsignedBigInteger('adt_target');
+            $table->string('adt_target',20);
             $table->string('adt_user_table');
             $table->string('adt_target_table');
             $table->string('adt_type')->comment('tipo operacion');

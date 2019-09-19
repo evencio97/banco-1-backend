@@ -22,7 +22,7 @@ class BaseController extends Controller
         $messagesString = '';
         if (!empty($errors)) {
             foreach ($errors as $error) {
-                $messagesString .= $error . (count($errors)>1? ', ':'');
+                $messagesString .= $error . (count($errors)>1? ' ':'');
             }
         }
         return $messagesString;

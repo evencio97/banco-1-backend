@@ -16,7 +16,7 @@ class CreateCreditCardPaymentsTable extends Migration
         Schema::create('credit_card_payments', function (Blueprint $table) {
             $table->bigIncrements('ccp_id');
             $table->unsignedBigInteger('ccp_creditcard');
-            $table->unsignedBigInteger('ccp_account');
+            $table->string('ccp_account', 20);
             $table->string('ccp_description', 300)->nullable();
             $table->float('ccp_amount', 10, 2);
             $table->integer('ccp_status')->default(0)->comment('0 procesando / 1 aprobado / 2 fallida');

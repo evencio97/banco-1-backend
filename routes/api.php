@@ -16,3 +16,19 @@ use Illuminate\Http\Request;
 Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+Route::group(['prefix' => 'account'/*, 'middleware' => 'auth:api'*/], function () {
+    Route::post('', 'AccountController@create');
+    Route::post('update', 'AccountController@update');
+    Route::post('deposit', 'AccountController@deposit');
+    Route::post('transfer/same-bank', 'AccountController@transferSameBank');
+    Route::get('balance', 'AccountController@getAccountBalance');
+    Route::get('balances', 'AccountController@getAccountsBalance');
+    Route::post('balance/admin', 'AccountController@getAccountsBalanceAdmin');
+    Route::get('balance/admin/all', 'AccountController@getAllAccountsBalanceAdmin');
+    Route::post('moves', 'AccountController@getAccountMoves');
+});
+
+Route::group(['prefix' => 'transfer'/*, 'middleware' => 'auth:api'*/], function () {
+    Route::post('same-bank', 'AccountController@transferSameBank');
+});

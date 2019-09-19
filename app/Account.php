@@ -19,7 +19,15 @@ class Account extends Model
     protected $primaryKey = 'aco_number';
 
     protected $fillable = [
-        'aco_user', 'aco_user_table', 'aco_balance',
+        'aco_number', 'aco_user', 'aco_user_table', 'aco_balance',
         'aco_balance_lock', 'aco_type', 'aco_status'
     ];
+
+    public function transfersMake(){
+        return $this->hasMany('App\Transfer', 'tra_account_emitter', 'aco_number')->orderBy('tra_created_at');
+    }
+
+    public function transfersReceive(){
+        return $this->hasMany('App\Transfer', 'tra_account_receiver', 'aco_number')->orderBy('tra_created_at');
+    }
 }

@@ -14,7 +14,7 @@ class CreateAccountsTable extends Migration
     public function up()
     {
         Schema::create('accounts', function (Blueprint $table) {
-            $table->unsignedBigInteger('aco_number');
+            $table->string('aco_number', 20);
             $table->unsignedBigInteger('aco_user');
             $table->string('aco_user_table');
             $table->float('aco_balance', 10, 2);
