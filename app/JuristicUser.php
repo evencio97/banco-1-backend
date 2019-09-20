@@ -28,7 +28,7 @@ class JuristicUser extends Authenticatable
      */
     protected $fillable = [
         'jusr_rif','jusr_user', 'jusr_company',
-        'jusr_address', 'jusr_phone', 'jusr_email',
+        'jusr_address', 'jusr_phone',
         'password', 'activation_token'
     ];
 

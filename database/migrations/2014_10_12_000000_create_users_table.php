@@ -20,11 +20,14 @@ class CreateUsersTable extends Migration
             $table->string('first_surname');
             $table->string('second_surname');
             $table->string('email')->unique();
-            $table->string('username')->unique();
+            $table->string('user_ci')->unique();
+            $table->string('q_recovery');
+            $table->string('a_recovery');
             $table->string('password');
             $table->string('address', 300);
+            // $table->integer('active')->default(0);
             $table->string('phone');
-            $table->string('type');
+            $table->integer('type');
             $table->string('activation_token');
             $table->rememberToken();
             $table->timestamp('created_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
