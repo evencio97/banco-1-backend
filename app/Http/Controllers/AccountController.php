@@ -210,7 +210,7 @@ class AccountController extends BaseController
                 return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
             }
             // validate receiver account
-            // $receiver = Account::find($request->receiver);
+            $receiver = Account::find($request->receiver);
             // if (!$receiver){
             //     return response()->json(['success' => false, 'message' => 'The receiver account dont exist'], 422);
             // }

@@ -18,7 +18,7 @@ class CreateBillsTable extends Migration
             $table->unsignedBigInteger('bil_emitter');
             $table->unsignedBigInteger('bil_receiver');
             $table->unsignedBigInteger('bil_transfer')->nullable();
-            $table->string('bil_ref_code')->unique();
+            $table->string('bil_ref_code');
             $table->string('bil_description')->nullable();
             $table->float('bil_amount', 10, 2);
             $table->date('bil_paydate')->nullable();

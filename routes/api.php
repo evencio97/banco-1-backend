@@ -32,3 +32,13 @@ Route::group(['prefix' => 'account'/*, 'middleware' => 'auth:api'*/], function (
 Route::group(['prefix' => 'transfer'/*, 'middleware' => 'auth:api'*/], function () {
     Route::post('same-bank', 'AccountController@transferSameBank');
 });
+
+Route::group(['prefix' => 'bill'/*, 'middleware' => 'auth:api'*/], function () {
+    Route::post('', 'BillsController@create');
+    Route::post('update', 'BillsController@update');
+    Route::post('pay', 'BillsController@payBill');
+    Route::get('', 'BillsController@getBills');
+    Route::get('pay', 'BillsController@getPayBills');
+    Route::get('open', 'BillsController@getOpenBills');
+    Route::post('expired', 'BillsController@getExpBills');
+});
