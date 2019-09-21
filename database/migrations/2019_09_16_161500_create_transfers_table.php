@@ -15,8 +15,8 @@ class CreateTransfersTable extends Migration
     {
         Schema::create('transfers', function (Blueprint $table) {
             $table->bigIncrements('tra_number');
-            $table->unsignedBigInteger('tra_account_emitter');
-            $table->unsignedBigInteger('tra_account_receiver');
+            $table->string('tra_account_emitter', 20);
+            $table->string('tra_account_receiver', 20);
             $table->unsignedBigInteger('tra_bank')->nullable();
             $table->string('tra_description')->nullable();
             $table->float('tra_amount', 10, 2);

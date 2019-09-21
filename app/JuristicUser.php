@@ -10,7 +10,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 
 class JuristicUser extends Authenticatable
 {
-    use HasApiTokens, Notifiable, SoftDeletes;
+    use SoftDeletes;
 
     protected $dates = ['jusr_deleted_at'];
     const DELETED_AT = 'jusr_deleted_at';
