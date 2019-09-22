@@ -158,7 +158,7 @@ class BillsController extends BaseController{
             }
             
             //validate bill
-            $bill = Bill::where('bil_emitter', $user->jusr_rif)->where('bil_id', $request->bill_id)->first();
+            $bill = Bill::where('bil_receiver', $user->jusr_rif)->where('bil_id', $request->bill_id)->first();
             if (!$bill) return response()->json(['success' => false, 'message' => 'The bill dont exist'], 422); 
             if ($bill->bil_status != 0) return response()->json(['success' => false, 'message' => 'The bill has been already pay'], 422); 
             

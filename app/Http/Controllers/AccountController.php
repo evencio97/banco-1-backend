@@ -347,12 +347,9 @@ class AccountController extends BaseController
         try {
             $user = $request->user();
             if (!$user || !$user->get('id')){
-                return response()->json(['success' => false, 'message' => 'You have to indentify yourself'], 422);
+                return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
             $accounts = Account::where('aco_user_table', $user->get('rif')? 'juristic_users':'users')->where('aco_user', $user->id)->get();
-            if (!$accounts->count()){
-                return response()->json(['success' => false, 'message' => 'You dont have any account'], 422);
-            }
 
             return response()->json([
                 'success' => true,

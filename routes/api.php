@@ -55,3 +55,12 @@ Route::group(['prefix' => 'bill'/*, 'middleware' => 'auth:api'*/], function () {
     Route::get('open', 'BillsController@getOpenBills');
     Route::post('expired', 'BillsController@getExpBills');
 });
+
+Route::group(['prefix' => 'tdc'/*, 'middleware' => 'auth:api'*/], function () {
+    Route::post('', 'CreditCardsController@create');
+    Route::post('update', 'CreditCardsController@update');
+    Route::post('pay', 'CreditCardsController@payCreditCard');
+    Route::get('', 'CreditCardsController@getCreditCards');
+    Route::get('admin', 'CreditCardsController@getCreditCardsAdmin');
+    Route::get('one', 'CreditCardsController@getCreditCard');
+});

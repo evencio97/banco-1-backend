@@ -15,7 +15,7 @@ class CreatePurchasesTable extends Migration
     {
         Schema::create('purchases', function (Blueprint $table) {
             $table->bigIncrements('pur_id');
-            $table->unsignedBigInteger('pur_creditcard');
+            $table->string('pur_creditcard', 20);
             $table->unsignedBigInteger('pur_bank')->nullable();
             $table->string('pur_description', 300)->nullable();
             $table->string('pur_business');
