@@ -33,8 +33,9 @@ Route::group(['namespace' => 'Auth', 'middleware' => 'api', 'prefix' => 'passwor
 Route::group(['prefix' => 'account'/*, 'middleware' => 'auth:api'*/], function () {
     Route::post('', 'AccountController@create');
     Route::post('update', 'AccountController@update');
-    Route::post('deposit', 'AccountController@deposit');
+    // Route::post('deposit', 'AccountController@deposit');
     Route::post('transfer', 'AccountController@transfer');
+    Route::post('receive', 'AccountController@receive');
     Route::get('balance', 'AccountController@getAccountBalance');
     Route::get('balances', 'AccountController@getAccountsBalance');
     Route::post('balance/admin', 'AccountController@getAccountsBalanceAdmin');

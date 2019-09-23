@@ -397,7 +397,7 @@ class AccountController extends BaseController
             // validate receiver account
             $receiver = Account::find($request->receiver);
             if (!$receiver) return response()->json(['success' => false, 'message' => 'The receiver account dont exists'], 422);
-            if ($receiver->aco_status == 0) return response()->json(['success' => false, 'message' => 'You cant transfer to a blocked up account'], 422);
+            if ($receiver->aco_status != 1) return response()->json(['success' => false, 'message' => 'You cant transfer to a no active account'], 422);
             
             DB::beginTransaction();
             
@@ -435,9 +435,70 @@ class AccountController extends BaseController
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json([
-                'success' => false,
-                'message' => 'An error has occurred, please try again later',
-                'exception' => $e
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function receive(Request $request){
+        try {
+            $rules = [
+                'emitter' =>'required|string',
+                'receiver' => 'required|string|exists:accounts,aco_number',
+                'amount' => 'required|integer',
+                'key' => 'required|string'
+            ];
+            $errors = $this->validateRequest($request, $rules);
+            if(count($errors)){
+                return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+            }
+            //Validate bank key
+            $bank = Bank::where('bnk_key', $request->key)->first();
+            if (!$bank) return response()->json(['success' => false, 'message' => 'The key is incorrect'], 422);
+            //validate amount
+            if ($request->amount < 1) return response()->json(['success' => false, 'message' => 'The amount is incorrect'], 422);
+            //validate emitter account
+            if ($bank->bnk_id == substr($request->receiver, 0, 3) && strlen($request->emitter) == 20) return response()->json(['success' => false, 'message' => 'The emitter account is incorrect'], 422);
+            //validate receiver account
+            $receiver = Account::find($request->receiver);
+            if ($receiver->aco_status != 1) return response()->json(['success' => false, 'message' => 'The account is not active'], 422);
+            DB::beginTransaction();
+            
+            $receiver->aco_balance += $request->amount; 
+            $receiver->save();
+            $transfer = new Transfer([
+                'tra_account_emitter' => $request->emitter, 
+                'tra_account_receiver' => $request->receiver,
+                'tra_bank' => $bank->bnk_id,
+                'tra_description' => $request->get('description'),
+                'tra_amount' => $request->amount,
+                'tra_type' => 1,
+                'tra_status' => 1,
+                'tra_client_ip' => $request->ip()
+            ]);
+            $transfer->save();
+
+            Audit::saveAudit($request->receiver, 'accounts', $transfer->tra_number, 'transfers', 'receive', $request->ip());
+            $user_receiver = DB::table($receiver->aco_user_table)->where('id', $receiver->aco_user)->first();
+            
+            DB::commit();
+            try {
+                Mail::send([], [], function ($message) use ($transfer, $user_receiver, $bank) {
+                    $message->from('banco1enlinea@gmail.com', 'Banco 1')
+                    ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
+                    ->to($user_receiver->get('jusr_rif')? $user_receiver->jusr_email:$user_receiver->email)->subject('Banco 1 Siempre Contigo')
+                    ->setBody('Ha recibido una transferencia con codigo de referencia '.$transfer->tra_number.' por '.$transfer->tra_amount.'BsS desde una cuenta en '.$bank->bnk_name);
+                });
+            } catch (\Exception $e) {}
+
+            return response()->json([
+                'success' => true, 'message' => 'The transfer has been successfully processed',
+                'transfer' => ['number' => $transfer->tra_number, 'status' => $transfer->tra_status, 'amount' => $transfer->tra_amount]
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
             ], 500);
         }
     }
