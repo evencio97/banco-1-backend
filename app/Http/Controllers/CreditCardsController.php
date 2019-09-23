@@ -18,7 +18,7 @@ class CreditCardsController extends BaseController
     public function create(Request $request){
         try {
             $user = $request->user();
-            if (!$user || $user->type != 'admin'){
+            if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
             $rules = [
@@ -72,7 +72,7 @@ class CreditCardsController extends BaseController
     public function update(Request $request){
         try {
             $user = $request->user();
-            if (!$user || $user->type != 'admin'){
+            if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
             $rules = [
@@ -93,7 +93,7 @@ class CreditCardsController extends BaseController
             DB::beginTransaction();
             
             $tdc->save();
-            Audit::saveAudit($user->id, 'admin', $number, 'credit_cards', 'update', $request->ip());
+            Audit::saveAudit($user->id, 3, $number, 'credit_cards', 'update', $request->ip());
             
             DB::commit();
 
@@ -128,7 +128,7 @@ class CreditCardsController extends BaseController
             DB::beginTransaction();
             
             $tdc->save();
-            Audit::saveAudit($user->id, 'admin', $number, 'credit_cards', 'update', $request->ip());
+            Audit::saveAudit($user->id, 3, $number, 'credit_cards', 'update', $request->ip());
             
             DB::commit();
 
@@ -175,7 +175,7 @@ class CreditCardsController extends BaseController
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
-            $tdc = CreditCards::when($user->type != 'admin', function ($query) use ($user) {
+            $tdc = CreditCards::when($user->type != 3, function ($query) use ($user) {
                                     return $query->where('cc_user', $user->id);
                                 })->where('cc_number', $request->number)->first();
             if(!$tdc) return response()->json(['success' => false, 'message' => 'The credit card doesnt exists'], 422);
@@ -194,7 +194,7 @@ class CreditCardsController extends BaseController
     public function getCreditCardsAdmin(Request $request){
         try {
             $user = $request->user();
-            if (!$user && !$user->get('type') != 'admin'){
+            if (!$user && !$user->get('type') != 3){
                 return response()->json(['success' => false, 'message' => 'You have to be admin to make this operation'], 422);
             }
             $tdcs = CreditCards::when($request->get('expdate'), function ($query) use ($request) {

@@ -157,9 +157,7 @@ class AuthController extends BaseController
         try {
             DB::beginTransaction();
             if (!Auth::attempt($credentials)) {
-                return response()->json([
-                    'message' => 'Datos invalidos o cuenta no confirmada'
-                ], 401);
+                return response()->json(['success' => false, 'message' => 'Datos invalidos o cuenta no confirmada'], 401);
             }
             $user = $request->user();
             $tokenResult = $user->createToken('Personal Access Token');
@@ -178,8 +176,7 @@ class AuthController extends BaseController
                 'token_type'   => 'Bearer',
                 'expires_at'   => Carbon::parse(
                     $tokenResult->token->expires_at
-                )
-                    ->toDateTimeString(),
+                )->toDateTimeString(),
             ]);
         } catch (\Throwable $e) {
             DB::rollBack();

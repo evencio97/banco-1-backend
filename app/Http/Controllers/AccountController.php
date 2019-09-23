@@ -17,7 +17,7 @@ class AccountController extends BaseController
     public function create(Request $request){
         try {
             $user = $request->user();
-            if (!$user || $user->type != 'admin'){
+            if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
             $rules = [
@@ -91,7 +91,7 @@ class AccountController extends BaseController
                 return response()->json(['success' => false, 'message' => 'The account dont exist'], 422);
             }
             $user = $request->user();
-            if (!$user || $user->type != 'admin'){
+            if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
 
@@ -104,7 +104,7 @@ class AccountController extends BaseController
 
             $account->save();
 
-            Audit::saveAudit($user->id, 'admin', $number, 'accounts', 'update', $request->ip());
+            Audit::saveAudit($user->id, 3, $number, 'accounts', 'update', $request->ip());
             
             DB::commit();
 
@@ -186,7 +186,7 @@ class AccountController extends BaseController
             }
             $account = Account::find($request->number);
             $user = $request->user();
-            if (!$user || ($user->get('id') != $account->aco_user && $user->type != 'admin')){
+            if (!$user || ($user->get('id') != $account->aco_user && $user->type != 3)){
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of the account'], 422);
             }
 
@@ -216,7 +216,7 @@ class AccountController extends BaseController
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
             $user = $request->user();
-            if (!$user || $user->type != 'admin'){
+            if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
             if ($request->user_table != 'users' || $request->user_table != 'juristic_users'){
@@ -245,7 +245,7 @@ class AccountController extends BaseController
     public function getAllAccountsBalanceAdmin(Request $request){
         try {
             $user = $request->user();
-            if (!$user || $user->type != 'admin'){
+            if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
             $accounts = Account::paginate(15);
@@ -299,7 +299,7 @@ class AccountController extends BaseController
             }
             $account = Account::find($request->number);
             $user = $request->user();
-            if (!$user || ($user->get('id') != $account->aco_user && $user->type != 'admin')){
+            if (!$user || ($user->get('id') != $account->aco_user && $user->type != 3)){
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of the account'], 422);
             }
 
