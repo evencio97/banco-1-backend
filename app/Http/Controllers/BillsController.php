@@ -60,7 +60,7 @@ class BillsController extends BaseController{
             
             Mail::send([], [], function ($message) use ($receiver, $bill) {
                 $message->from('banco1enlinea@gmail.com', 'Banco 1')
-                ->replyTo('banco1enlinea@gmail.com', 'Ines Arenas')
+                ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
                 ->to($receiver->jusr_email)->subject('Banco 1 Siempre Contigo')
                 ->setBody('Se ha creado una factura con codigo de referencia '.$bill->bil_ref_code.' a nombre de tu empresa');
             });
@@ -114,7 +114,7 @@ class BillsController extends BaseController{
             
             Mail::send([], [], function ($message) use ($receiver, $bill) {
                 $message->from('banco1enlinea@gmail.com', 'Banco 1')
-                ->replyTo('banco1enlinea@gmail.com', 'Ines Arenas')
+                ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
                 ->to($receiver->jusr_email)->subject('Banco 1 Siempre Contigo')
                 ->setBody('Se ha actualizado la factura con codigo de referencia '.$bill->bil_ref_code.' a nombre de tu empresa');
             });
@@ -195,7 +195,7 @@ class BillsController extends BaseController{
             
             Mail::send([], [], function ($message) use ($receiver, $bill) {
                 $message->from('banco1enlinea@gmail.com', 'Banco 1')
-                        ->replyTo('banco1enlinea@gmail.com', 'Ines Arenas')
+                        ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
                         ->to($receiver->jusr_email)->subject('Banco 1 Siempre Contigo')
                         ->setBody('Se ha pagado su factura con codigo de referencia '.$bill->bil_ref_code);
             });

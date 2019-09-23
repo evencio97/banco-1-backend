@@ -23,7 +23,7 @@ class CreateCreditCardsTable extends Migration
             $table->integer('cc_interests')->comment('porcentaje');
             $table->float('cc_minimum_payment', 10, 2);
             $table->date('cc_paydate')->nullable();
-            $table->integer('cc_status')->default(1)->comment('0 no activa / 1 activa / 2 bloqueada');
+            $table->integer('cc_status')->default(0)->comment('0 no activa / 1 activa / 2 bloqueada');
             $table->timestamp('cc_created_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
             $table->timestamp('cc_updated_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
             $table->timestamp('cc_deleted_at')->nullable();

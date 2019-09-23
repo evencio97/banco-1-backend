@@ -34,7 +34,7 @@ Route::group(['prefix' => 'account'/*, 'middleware' => 'auth:api'*/], function (
     Route::post('', 'AccountController@create');
     Route::post('update', 'AccountController@update');
     Route::post('deposit', 'AccountController@deposit');
-    Route::post('transfer/same-bank', 'AccountController@transferSameBank');
+    Route::post('transfer', 'AccountController@transfer');
     Route::get('balance', 'AccountController@getAccountBalance');
     Route::get('balances', 'AccountController@getAccountsBalance');
     Route::post('balance/admin', 'AccountController@getAccountsBalanceAdmin');
@@ -42,9 +42,6 @@ Route::group(['prefix' => 'account'/*, 'middleware' => 'auth:api'*/], function (
     Route::post('moves', 'AccountController@getAccountMoves');
 });
 
-Route::group(['prefix' => 'transfer'/*, 'middleware' => 'auth:api'*/], function () {
-    Route::post('same-bank', 'AccountController@transferSameBank');
-});
 
 Route::group(['prefix' => 'bill'/*, 'middleware' => 'auth:api'*/], function () {
     Route::post('', 'BillsController@create');
@@ -59,7 +56,9 @@ Route::group(['prefix' => 'bill'/*, 'middleware' => 'auth:api'*/], function () {
 Route::group(['prefix' => 'tdc'/*, 'middleware' => 'auth:api'*/], function () {
     Route::post('', 'CreditCardsController@create');
     Route::post('update', 'CreditCardsController@update');
+    Route::post('update/status', 'CreditCardsController@changeStatus');
     Route::post('pay', 'CreditCardsController@payCreditCard');
+    Route::post('purchase', 'CreditCardsController@purchase');
     Route::get('', 'CreditCardsController@getCreditCards');
     Route::get('admin', 'CreditCardsController@getCreditCardsAdmin');
     Route::get('one', 'CreditCardsController@getCreditCard');

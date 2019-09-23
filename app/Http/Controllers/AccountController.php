@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Mail;
 use App\Account;
 use App\User;
 use App\JuristicUser;
@@ -163,85 +164,6 @@ class AccountController extends BaseController
             return response()->json([
                 'success' => true,
                 'message' => 'Successfully deposit in the account'
-            ], 200);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'An error has occurred, please try again later',
-                'exception' => $e
-            ], 500);
-        }
-    }
-
-    public function transferSameBank(Request $request){
-        try {
-            $rules = [
-                'emitter' => 'required|string|exists:accounts,aco_number',
-                'receiver' => 'required|string|exists:accounts,aco_number',
-                'amount' => 'required|integer',
-                'password' => 'required|string'
-            ];
-            $errors = $this->validateRequest($request, $rules);
-            if(count($errors)){
-                return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
-            }
-            //validate amount
-            if ($request->amount <= 0){
-                return response()->json(['success' => false, 'message' => 'The amount is incorrect'], 422);
-            }
-            //validate emitter acount
-            $emitter = Account::find($request->emitter);
-            // if (!$emitter){
-            //     return response()->json(['success' => false, 'message' => 'The account dont exist'], 422);
-            // }
-            if ($emitter->aco_status == 0){
-                return response()->json(['success' => false, 'message' => 'The account is blocked up'], 422);
-            }
-            if ($request->amount > $emitter->aco_balance){
-                return response()->json(['success' => false, 'message' => 'You dont have enough money'], 422);
-            }
-            $user = $request->user();
-            if (!$user || $user->id != $emitter->aco_user){
-                return response()->json(['success' => false, 'message' => 'You dont are the owner of the emitter account'], 422);
-            }
-            $password = DB::table($emitter->aco_user_table)->where('id', $emitter->aco_user)->first();
-            if ($password->password != $request->password){
-                return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
-            }
-            // validate receiver account
-            $receiver = Account::find($request->receiver);
-            // if (!$receiver){
-            //     return response()->json(['success' => false, 'message' => 'The receiver account dont exist'], 422);
-            // }
-            if ($receiver->aco_status == 0){
-                return response()->json(['success' => false, 'message' => 'You cant transfer to a blocked up account'], 422);
-            }
-            
-            DB::beginTransaction();
-            
-            $emitter->aco_balance -= $request->amount; 
-            $emitter->save();
-            $receiver->aco_balance += $request->amount; 
-            $receiver->save();
-            $transfer = new Transfer([
-                'tra_account_emitter' => $request->emitter, 
-                'tra_account_receiver' => $request->receiver,
-                'tra_description' => $request->get('description'),
-                'tra_amount' => $request->amount,
-                'tra_status' => 1,
-                'tra_client_ip' => $request->ip()
-            ]);
-            $transfer->save();
-
-            Audit::saveAudit($emitter->aco_user, $emitter->aco_user_table, $transfer->tra_number, 'transfers', 'create', $request->ip());
-            
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'The transfer has been successfully processed',
-                'transfer' => ['number' => $transfer->tra_number, 'status' => $transfer->tra_status, 'amount' => $transfer->tra_amount]
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -414,6 +336,101 @@ class AccountController extends BaseController
                 'account' => $account,
                 'transfers' => $transfers,
                 'ccpayments' => $ccpayments
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'An error has occurred, please try again later',
+                'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function transfer(Request $request){
+        try {
+            $rules = [
+                'emitter' => 'required|string|exists:accounts,aco_number',
+                'receiver' => 'required|string',
+                'amount' => 'required|integer',
+                'password' => 'required|string'
+            ];
+            $errors = $this->validateRequest($request, $rules);
+            if(count($errors)){
+                return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+            }
+            //validate amount
+            if ($request->amount < 1) return response()->json(['success' => false, 'message' => 'The amount is incorrect'], 422);
+            $emitter = Account::find($request->emitter);
+            //Validate user
+            $user = $request->user();
+            if (!$user || $user->id != $emitter->aco_user) return response()->json(['success' => false, 'message' => 'You dont are the owner of the emitter account'], 422);
+            $password = DB::table($emitter->aco_user_table)->where('id', $emitter->aco_user)->first();
+            if ($password->password != $request->password) return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
+            
+            //validate emitter acount
+            if ($emitter->aco_status != 1) return response()->json(['success' => false, 'message' => 'The account is not active'], 422);
+            if ($request->amount > $emitter->aco_balance) return response()->json(['success' => false, 'message' => 'You dont have enough money'], 422);
+            
+            $bank = substr($request->receiver, 0, 3);
+            // if ($bank == '001' ){
+                //same bank
+                $result = transferSameBank($request, $emitter);
+            // } else{
+            //     // banco 2
+            //     $result = 
+            // }
+
+            return $result;
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'An error has occurred, please try again later',
+                'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function transferSameBank(Request $request, $emitter){
+        try {
+            // validate receiver account
+            $receiver = Account::find($request->receiver);
+            if (!$receiver) return response()->json(['success' => false, 'message' => 'The receiver account dont exists'], 422);
+            if ($receiver->aco_status == 0) return response()->json(['success' => false, 'message' => 'You cant transfer to a blocked up account'], 422);
+            
+            DB::beginTransaction();
+            
+            $emitter->aco_balance -= $request->amount; 
+            $emitter->save();
+            $receiver->aco_balance += $request->amount; 
+            $receiver->save();
+            $transfer = new Transfer([
+                'tra_account_emitter' => $request->emitter, 
+                'tra_account_receiver' => $request->receiver,
+                'tra_description' => $request->get('description'),
+                'tra_amount' => $request->amount,
+                'tra_status' => 1,
+                'tra_client_ip' => $request->ip()
+            ]);
+            $transfer->save();
+
+            Audit::saveAudit($emitter->aco_user, $emitter->aco_user_table, $transfer->tra_number, 'transfers', 'create', $request->ip());
+            $user_receiver = DB::table($receiver->aco_user_table)->where('id', $receiver->aco_user)->first();
+            
+            DB::commit();
+            try {
+                Mail::send([], [], function ($message) use ($transfer, $user_receiver) {
+                    $message->from('banco1enlinea@gmail.com', 'Banco 1')
+                    ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
+                    ->to($user_receiver->get('jusr_rif')? $user_receiver->jusr_email:$user_receiver->email)->subject('Banco 1 Siempre Contigo')
+                    ->setBody('Ha recibido una transferencia con codigo de referencia '.$transfer->tra_number.' por '.$transfer->tra_amount.'BsS');
+                });
+            } catch (\Exception $e) {}
+
+            return response()->json([
+                'success' => true, 'message' => 'The transfer has been successfully processed',
+                'transfer' => ['number' => $transfer->tra_number, 'status' => $transfer->tra_status, 'amount' => $transfer->tra_amount]
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();

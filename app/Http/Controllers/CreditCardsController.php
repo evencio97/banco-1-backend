@@ -84,11 +84,46 @@ class CreditCardsController extends BaseController
             }
 
             $tdc = CreditCard::find($request->number);
-            if ($request->get('status') && ($request->status >= 0 || $request->status < 4)) $tdc->cc_status = $request->status; 
+            if ($request->get('status') && $request->status >= 0 && $request->status < 4) $tdc->cc_status = $request->status; 
             if ($request->get('limit') && $request->limit > 0) $account->cc_limit = $request->limit;
             if ($request->get('balance') && $request->balance > 0 && $request->balance < $tdc->cc_limit) $tdc->cc_balance = $request->balance;
             if ($request->get('minimum') && $request->minimum > 0 && $request->minimum < $tdc->cc_limit) $tdc->cc_minimum_payment = $request->minimum;
             if ($request->get('interest') && $request->interest > 0 && $request->interest < 100) $account->cc_interests = $request->interest;
+
+            DB::beginTransaction();
+            
+            $tdc->save();
+            Audit::saveAudit($user->id, 'admin', $number, 'credit_cards', 'update', $request->ip());
+            
+            DB::commit();
+
+            return response()->json([
+                'success' => true, 'message' => 'Credit card successfully updated'
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function changeStatus(Request $request){
+        try {
+            $rules = [
+                'number' => 'required|string|exists:credit_cards,cc_number',
+                'status' => 'required|integer'
+            ];
+            $errors = $this->validateRequest($request, $rules);
+            if(count($errors)){
+                return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+            }
+            $user = $request->user();
+            if (!$user || !$user->get('id')) return response()->json(['success' => false, 'message' => 'You have to login to do this operation'], 422);
+            
+            $tdc = CreditCard::where('cc_number',$request->number)->where('cc_user', $user->id)->first();
+            if (!$tdc) return response()->json(['success' => false, 'message' => 'You dont are the credit card owner'], 422);
+            if ($request->status >= 0 && $request->status < 4) $tdc->cc_status = $request->status; 
 
             DB::beginTransaction();
             
@@ -236,6 +271,96 @@ class CreditCardsController extends BaseController
 
             return response()->json([
                 'success' => true, 'message' => 'Credit card successfully paid'
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function purchase(Request $request){
+        try {
+            $rules = [
+                'number' => 'required|string',
+                'rif' => 'required|string|exists:juristic_users,jusr_rif',
+                'cvv' => 'required|integer',
+                'name' => 'required|string',
+                'lastname' => 'required|string',
+                'expdate' => 'required|date',
+                'amount' => 'required|numeric'
+            ];
+            $errors = $this->validateRequest($request, $rules);
+            if(count($errors)){
+                return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+            }
+            $account = Account::where('aco_user_table', 'juristic_users')->join('juristic_users', 'juristic_users.id', '=', 'accounts.aco_user')
+                                ->where('juristic_users.jusr_rif', $request->rif)->first();
+            if (!$account) return response()->json(['success' => false, 'message' => 'The rif doesnt have any associated account'], 422);
+            if ($account->aco_status != 1) return response()->json(['success' => false, 'message' => 'The account isnt active'], 422);            
+            if ($request->amount < 1) return response()->json(['success' => false, 'message' => 'The amount of the purchases is invalid'], 422);
+            if ($request->expdate < Carbon::now()->format('Y-m-d')) return response()->json(['success' => false, 'message' => 'The credit card has expirate or is wrong'], 422);
+            if (strlen(strval($request->cvv)) != 3) return response()->json(['success' => false, 'message' => 'The cvv code has to be 3 digits long'], 422);
+            if (strlen($request->number) != 20) return response()->json(['success' => false, 'message' => 'The credit card number has to be 20 digits long'], 422);
+
+            $bank = substr($request->number, 0, 3);
+            // if ($bank == '001' ){
+                //same bank
+                $result = sameBankPurchase($request, $account);
+            // } else{
+            //     // banco 2
+            //     $result = 
+            // }
+
+            return $result;
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function sameBankPurchase(Request $request, $account){
+        try {
+            //validate tdc
+            $tdc = CreditCard::where('cc_number', $request->number)->join('users', 'users.id', '=', 'cc_user')->first();
+            if (!$tdc) return response()->json(['success' => false, 'message' => 'The credit card dont exists'], 422); 
+            if ($tdc->cc_cvv != $request->cvv) return response()->json(['success' => false, 'message' => 'The cvv code is incorrect'], 422); 
+            if ($tdc->exp_date != $request->expdate) return response()->json(['success' => false, 'message' => 'The expiration date is incorrect'], 422); 
+            if ($tdc->name != $request->first_name || $tdc->lastname != $request->first_surname) return response()->json(['success' => false, 'message' => 'The name or lastname is incorrect'], 422); 
+            if (($tdc->cc_limit - $tdc->cc_balance) < $request->amount) return response()->json(['success' => false, 'message' => 'The credit card doesnt have enough money'], 422); 
+            
+            DB::beginTransaction();
+
+            $tdc->cc_balance += $request->amount;
+            $tdc->save();
+            $account->aco_balance += $request->amount;
+            $account->save();
+            $purchase = new Purchases([
+                'pur_credit_card' => $tdc->cc_number, 
+                'pur_business' => $account->jusr_rif,
+                'pur_amount' => $request->amount,
+                'pur_description' => $request->get('description'),
+                'pur_status' => 1,
+                'pur_client_ip' => $request->ip()
+            ]);
+            $purchase->save();
+            Audit::saveAudit($tdc->cc_user, 'users', $purchase->pur_id, 'purchases', 'create', $request->ip());
+
+            DB::commit();
+            try {
+                Mail::send([], [], function ($message) use ($purchase, $tdc) {
+                    $message->from('banco1enlinea@gmail.com', 'Banco 1')
+                    ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
+                    ->to($tdc->email)->subject('Banco 1 Siempre Contigo')
+                    ->setBody('Se ha realizado una compra con tdc con codigo de referencia '.$purchase->pur_id.' por '.$purchase->pur_amount.'BsS');
+                });
+            } catch (\Exception $e) {}
+
+            return response()->json([
+                'success' => true, 'message' => 'Purchase successfully process',
+                'purchase' => ['refcode' => $purchase->pur_id, 'status' => $purchase->pur_status, 'amount' => $purchase->pur_amount]
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
