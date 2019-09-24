@@ -144,11 +144,11 @@ class CreditCardsController extends BaseController
     }
     
     public function getCreditCards(Request $request){
-        //try {
-            $user = $request;//->user();
-            // if (!$user && !$user->get('id')){
-            //     return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
-            // }
+        try {
+            $user = $request->user();
+            if (!$user && !$user->get('id')){
+                return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
+            }
             $tdcs = CreditCard::where('cc_user', $user->id)->get();
             
             if ($request->get('accounts')){
@@ -160,12 +160,12 @@ class CreditCardsController extends BaseController
             return response()->json([
                 'success' => true, 'message' => 'The operation has been successfully processed', 'tdcs' => $tdcs
             ], 200);
-        // } catch (\Throwable $e) {
-        //     DB::rollBack();
-        //     return response()->json([
-        //         'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
-        //     ], 500);
-        // }
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
+        }
     }
 
     public function getCreditCard(Request $request){
@@ -223,7 +223,7 @@ class CreditCardsController extends BaseController
     }
 
     public function payCreditCard(Request $request){
-        //try {
+        try {
             $rules = [
                 'number' => 'required|string|exists:credit_cards,cc_number',
                 'account' => 'required|string|exists:accounts,aco_number',
@@ -278,12 +278,12 @@ class CreditCardsController extends BaseController
             return response()->json([
                 'success' => true, 'message' => 'Credit card successfully paid'
             ], 200);
-        // } catch (\Throwable $e) {
-        //     DB::rollBack();
-        //     return response()->json([
-        //         'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
-        //     ], 500);
-        // }
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
+        }
     }
 
     public function purchase(Request $request){
