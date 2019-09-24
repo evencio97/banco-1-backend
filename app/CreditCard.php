@@ -24,6 +24,10 @@ class CreditCard extends Model
         'cc_minimum_payment', 'cc_paydate', 'cc_status'
     ];
 
+    protected $casts = [
+        'cc_number'  =>  'string'
+    ];
+
     protected $hidden = [
         'cc_cvv'
     ];

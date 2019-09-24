@@ -28,4 +28,8 @@ class Purchases extends Model
         'pur_business', 'pur_amount', 'pur_status', 
         'pur_client_ip',
     ];
+
+    protected $casts = [
+        'pur_creditcard'  =>  'string'
+    ];
 }

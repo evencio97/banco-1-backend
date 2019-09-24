@@ -48,5 +48,6 @@ class JuristicUser extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'jusr_rif' => 'string'
     ];
 }

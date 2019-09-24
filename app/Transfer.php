@@ -28,4 +28,9 @@ class Transfer extends Model
         'tra_description', 'tra_amount', 'tra_type', 
         'tra_status', 'tra_client_ip'
     ];
+
+    protected $casts = [
+        'tra_account_emitter'  =>  'string',
+        'tra_account_receiver'  =>  'string'
+    ];
 }

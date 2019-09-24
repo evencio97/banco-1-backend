@@ -22,4 +22,9 @@ class CreditCardPayment extends Model
         'ccp_creditcard', 'ccp_account', 'ccp_description',
         'ccp_amount', 'ccp_status', 'ccp_client_ip'
     ];
+
+    protected $casts = [
+        'ccp_creditcard'  =>  'string',
+        'ccp_account'  =>  'string'
+    ];
 }

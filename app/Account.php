@@ -23,6 +23,10 @@ class Account extends Model
         'aco_balance_lock', 'aco_type', 'aco_status'
     ];
 
+    protected $casts = [
+        'aco_number'  =>  'string'
+    ];
+
     public function transfersMake(){
         return $this->hasMany('App\Transfer', 'tra_account_emitter', 'aco_number')->orderBy('tra_created_at');
     }
