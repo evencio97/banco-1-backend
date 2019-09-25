@@ -175,7 +175,7 @@ class AccountController extends BaseController
         }
     }
 
-    public function getAccountBalance(Request $request){
+    public function getAccount(Request $request){
         try {
             $rules = [
                 'number' => 'required|string|exists:accounts,aco_number'
@@ -205,7 +205,7 @@ class AccountController extends BaseController
         }
     }
 
-    public function getAccountsBalanceAdmin(Request $request){
+    public function getAccountsAdmin(Request $request){
         try {
             $rules = [
                 'user_id' => 'required|string',
@@ -242,7 +242,7 @@ class AccountController extends BaseController
         }
     }
 
-    public function getAllAccountsBalanceAdmin(Request $request){
+    public function getAllAccountsAdmin(Request $request){
         try {
             $user = $request->user();
             if (!$user || $user->type != 3){
@@ -265,13 +265,16 @@ class AccountController extends BaseController
         }
     }
 
-    public function getAccountsBalance(Request $request){
+    public function getAccounts(Request $request){
         try {
             $user = $request->user();
             if (!$user || !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
-            $accounts = Account::where('aco_user_table', $user->get('rif')? 'juristic_users':'users')->where('aco_user', $user->id)->get();
+            $accounts = Account::where('aco_user_table', $user->get('jusr_rif')? 'juristic_users':'users')->where('aco_user', $user->id)
+                                ->when($request->get('status'), function ($query) use ($request) {
+                                    return $query->where('aco_status', $request->status);
+                                })->get();
 
             return response()->json([
                 'success' => true,
@@ -347,11 +350,13 @@ class AccountController extends BaseController
         }
     }
 
-    public function transfer(Request $request){
+    public function transferSameBank(Request $request){
         try {
             $rules = [
                 'emitter' => 'required|string|exists:accounts,aco_number',
-                'receiver' => 'required|string',
+                'receiver' => 'required|string|exists:accounts,aco_number',
+                'type' => 'required|string',
+                'identifier' => 'required|integer',
                 'amount' => 'required|integer',
                 'password' => 'required|string'
             ];
@@ -367,36 +372,24 @@ class AccountController extends BaseController
             if (!$user || $user->id != $emitter->aco_user) return response()->json(['success' => false, 'message' => 'You dont are the owner of the emitter account'], 422);
             $password = DB::table($emitter->aco_user_table)->where('id', $emitter->aco_user)->first();
             if ($password->password != $request->password) return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
-            
             //validate emitter acount
             if ($emitter->aco_status != 1) return response()->json(['success' => false, 'message' => 'The account is not active'], 422);
             if ($request->amount > $emitter->aco_balance) return response()->json(['success' => false, 'message' => 'You dont have enough money'], 422);
-            
-            $bank = substr($request->receiver, 0, 3);
-            // if ($bank == '001' ){
-                //same bank
-                $result = transferSameBank($request, $emitter);
-            // } else{
-            //     // banco 2
-            //     $result = 
-            // }
-
-            return $result;
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'An error has occurred, please try again later',
-                'exception' => $e
-            ], 500);
-        }
-    }
-
-    public function transferSameBank(Request $request, $emitter){
-        try {
+            // Validate identifier type            
+            if ($request->type!='V' && $request->type!='v' && $request->type != 'j' && $request->type != 'J'
+                && $request->type != 'e' && $request->type != 'E'){
+                return response()->json(['success' => false, 'message' => 'The identifier type is incorrect'], 422);
+            }
             // validate receiver account
-            $receiver = Account::find($request->receiver);
+            $receiver_table = $request->type=='j' || $request->type=='J'? 'juristic_users':'users';
+            $receiver = Account::where('aco_number', $request->receiver)
+                            ->join($receiver_table, 'id', '=', 'aco_user')->first();
+            // $user_receiver = DB::table($receiver->aco_user_table)->where('id', $receiver->aco_user)->first();
             if (!$receiver) return response()->json(['success' => false, 'message' => 'The receiver account dont exists'], 422);
+            if (($receiver_table == 'juristic_users' && $receiver->jusr_rif != $request->identifier) ||
+                ($receiver_table == 'users' && $receiver->user_ci != $request->identifier)) {
+                return response()->json(['success' => false, 'message' => 'The identifier is incorrect'], 422);
+            }
             if ($receiver->aco_status != 1) return response()->json(['success' => false, 'message' => 'You cant transfer to a no active account'], 422);
             
             DB::beginTransaction();
@@ -416,14 +409,13 @@ class AccountController extends BaseController
             $transfer->save();
 
             Audit::saveAudit($emitter->aco_user, $emitter->aco_user_table, $transfer->tra_number, 'transfers', 'create', $request->ip());
-            $user_receiver = DB::table($receiver->aco_user_table)->where('id', $receiver->aco_user)->first();
             
             DB::commit();
             try {
-                Mail::send([], [], function ($message) use ($transfer, $user_receiver) {
+                Mail::send([], [], function ($message) use ($transfer, $receiver, $receiver_table) {
                     $message->from('banco1enlinea@gmail.com', 'Banco 1')
                     ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
-                    ->to($user_receiver->get('jusr_rif')? $user_receiver->jusr_email:$user_receiver->email)->subject('Banco 1 Siempre Contigo')
+                    ->to($receiver_table == 'juristic_users'? $receiver->jusr_email:$receiver->email)->subject('Banco 1 Siempre Contigo')
                     ->setBody('Ha recibido una transferencia con codigo de referencia '.$transfer->tra_number.' por '.$transfer->tra_amount.'BsS');
                 });
             } catch (\Exception $e) {}
@@ -431,6 +423,22 @@ class AccountController extends BaseController
             return response()->json([
                 'success' => true, 'message' => 'The transfer has been successfully processed',
                 'transfer' => ['number' => $transfer->tra_number, 'status' => $transfer->tra_status, 'amount' => $transfer->tra_amount]
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'An error has occurred, please try again later',
+                'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function transferOtherBank(Request $request){
+        try { 
+            return response()->json([
+                'success' => true, 'message' => 'Under construction',
+                'transfer' => []
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();

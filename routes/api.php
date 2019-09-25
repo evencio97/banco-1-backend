@@ -34,12 +34,13 @@ Route::group(['prefix' => 'account'/*, 'middleware' => 'auth:api'*/], function (
     Route::post('', 'AccountController@create');
     Route::post('update', 'AccountController@update');
     // Route::post('deposit', 'AccountController@deposit');
-    Route::post('transfer', 'AccountController@transfer');
+    Route::post('transfer', 'AccountController@transferSameBank');
+    Route::post('transfer/other-bank', 'AccountController@transferOtherBank');
     Route::post('receive', 'AccountController@receive');
-    Route::get('balance', 'AccountController@getAccountBalance');
-    Route::get('balances', 'AccountController@getAccountsBalance');
-    Route::post('balance/admin', 'AccountController@getAccountsBalanceAdmin');
-    Route::get('balance/admin/all', 'AccountController@getAllAccountsBalanceAdmin');
+    Route::post('one', 'AccountController@getAccount');
+    Route::get('user', 'AccountController@getAccounts');
+    Route::post('one/admin', 'AccountController@getAccountsAdmin');
+    Route::get('all/admin', 'AccountController@getAllAccountsAdmin');
     Route::post('moves', 'AccountController@getAccountMoves');
 });
 
