@@ -49,7 +49,7 @@ class BillsController extends BaseController{
                 'bil_ref_code' => $request->refcode,
                 'bil_description' => $request->get('description')? $request->description:null,
                 'bil_amount' => $request->amount,
-                'bil_paydate' => $request->paydate,
+                //'bil_paydate' => $request->paydate,
                 'bil_expdate' => $request->expdate
             ]);
             $bill->save();
@@ -186,6 +186,7 @@ class BillsController extends BaseController{
             ]);
             $transfer->save();
             $bill->bil_transfer = $transfer->tra_number;
+            $bill->bil_paydate = Carbon::now()->format('Y-m-d');
             $bill->bil_status = 1;
             $bill->save();
             Audit::saveAudit($user->id, 'juristic_users', $bill->bil_id, 'bills', 'pay', $request->ip());
@@ -220,9 +221,15 @@ class BillsController extends BaseController{
             if (!$user || !$user->get('jusr_rif')){
                 return response()->json(['success' => false, 'message' => 'You dont are a juristic user'], 422);
             }
-            
-            //validate bill
-            $bills = Bill::where('bil_emitter', $user->jusr_rif)->orWhere('bil_receiver', $user->jusr_rif)->paginate(15);
+            $bills = Bill::where(function ($query) use ($user) {
+                                return $query->where('bil_emitter', $user->jusr_rif)->orWhere('bil_receiver', $user->jusr_rif);
+                            })
+                            ->when($request->get('start'), function ($query) use ($request) {
+                                return $query->whereDate('bil_created_at', '>=', $request->start);
+                            })
+                            ->when($request->get('end'), function ($query) use ($request) {
+                                return $query->whereDate('bil_created_at', '<=', $request->end);
+                            })->paginate(15);
 
             return response()->json([
                 'success' => true,
@@ -245,9 +252,9 @@ class BillsController extends BaseController{
             if (!$user || !$user->get('jusr_rif')){
                 return response()->json(['success' => false, 'message' => 'You dont are a juristic user'], 422);
             }
-            
-            //validate bill
-            $bills = Bill::where('bil_emitter', $user->jusr_rif)->orWhere('bil_receiver', $user->jusr_rif)
+            $bills = Bill::where(function ($query) use ($user) {
+                                return $query->where('bil_emitter', $user->jusr_rif)->orWhere('bil_receiver', $user->jusr_rif);
+                            })
                             ->where('bil_status', 1)->paginate(15);
 
             return response()->json([
@@ -271,8 +278,6 @@ class BillsController extends BaseController{
             if (!$user || !$user->get('jusr_rif')){
                 return response()->json(['success' => false, 'message' => 'You dont are a juristic user'], 422);
             }
-            
-            //validate bill
             $bills = Bill::where(function ($query) use ($user) {
                                 $query->where('bil_emitter', $user->jusr_rif)->orWhere('bil_receiver', $user->jusr_rif);
                             })->whereDate('bil_expdate', '>=', Carbon::now()->format('Y-m-d'))->where('bil_status', 0)->paginate(15);
@@ -298,8 +303,6 @@ class BillsController extends BaseController{
             if (!$user || !$user->get('jusr_rif')){
                 return response()->json(['success' => false, 'message' => 'You dont are a juristic user'], 422);
             }
-            
-            //validate bill
             $bills = Bill::where(function ($query) use ($user) {
                                 $query->where('bil_emitter', $user->jusr_rif)->orWhere('bil_receiver', $user->jusr_rif);
                             })->whereDate('bil_expdate', '<', Carbon::now()->format('Y-m-d'))->where('bil_status', 0)->paginate(15);

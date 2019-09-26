@@ -52,7 +52,7 @@ Route::group(['prefix' => 'bill'/*, 'middleware' => 'auth:api'*/], function () {
     Route::get('', 'BillsController@getBills');
     Route::get('pay', 'BillsController@getPayBills');
     Route::get('open', 'BillsController@getOpenBills');
-    Route::post('expired', 'BillsController@getExpBills');
+    Route::get('expired', 'BillsController@getExpBills');
 });
 
 Route::group(['prefix' => 'tdc'/*, 'middleware' => 'auth:api'*/], function () {
