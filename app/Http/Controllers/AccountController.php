@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Mail;
-use App\Account;
 use App\User;
-use App\JuristicUser;
-use App\Transfer;
-use App\CreditCardPayment;
 use App\Audit;
+use App\Account;
+use App\Transfer;
+use Carbon\Carbon;
+use App\JuristicUser;
+use App\CreditCardPayment;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AccountController extends BaseController
@@ -294,7 +295,8 @@ class AccountController extends BaseController
     public function getAccountMoves(Request $request){
         try {
             $rules = [
-                'number' => 'required|string|exists:accounts,aco_number'
+                'number' => 'required|string|exists:accounts,aco_number',
+                'option' => 'required|string'
             ];
             $errors = $this->validateRequest($request, $rules);
             if(count($errors)){
@@ -306,46 +308,42 @@ class AccountController extends BaseController
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of the account'], 422);
             }
 
+            $date = null;
+            if ($request->option != 'custom'){
+                if($request->option == 'today') $date = Carbon::now()->format('Y-m-d');
+                if($request->option == 'week') $date = Carbon::now()->subDays(7)->format('Y-m-d');
+                if($request->option == 'month') $date = Carbon::now()->subDays(30)->format('Y-m-d');
+            }
+
             $transfers = Transfer::where(function ($query) use ($account) {
                                         $query->where('tra_account_emitter', $account->aco_number)
                                         ->orWhere('tra_account_receiver', $account->aco_number);
                                     })
-                                    ->when($request->get('today'), function ($query) use ($request) {
-                                        return $query->whereDate('tra_created_at', '=', $request->today);
+                                    ->when($request->option!='custom' && $date, function ($query) use ($date) {
+                                        return $query->whereDate('created_at', '>=', $date);
                                     })
-                                    ->when($request->get('week'), function ($query) use ($request) {
-                                        return $query->whereDate('tra_created_at', '>=', $request->week);
-                                    })
-                                    ->when($request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
-                                        return $query->whereDate('tra_created_at', '>=', $request->mindate)
-                                                    ->whereDate('tra_created_at', '<=', $request->maxdate);
-                                    })->orderBy('tra_created_at', 'desc')->paginate(15);
+                                    ->when($request->option=='custom' && $request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
+                                        return $query->whereDate('created_at', '<=', $request->mindate)
+                                                    ->whereDate('created_at', '>=', $request->maxdate);
+                                    })->orderBy('created_at', 'desc')->paginate(15);
 
             $ccpayments = CreditCardPayment::where('ccp_account', $account->aco_number)
-                                    ->when($request->get('today'), function ($query) use ($request) {
-                                        return $query->whereDate('ccp_created_at', '=', $request->today);
+                                    ->when($request->option!='custom' && $date, function ($query) use ($date) {
+                                        return $query->whereDate('created_at', '>=', $date);
                                     })
-                                    ->when($request->get('week'), function ($query) use ($request) {
-                                        return $query->whereDate('ccp_created_at', '>=', $request->week);
-                                    })
-                                    ->when($request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
-                                        return $query->whereDate('ccp_created_at', '>=', $request->mindate)
-                                                    ->whereDate('ccp_created_at', '<=', $request->maxdate);
-                                    })->orderBy('ccp_created_at', 'desc')->paginate(15);
+                                    ->when($request->option=='custom' && $request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
+                                        return $query->whereDate('created_at', '<=', $request->mindate)
+                                                    ->whereDate('created_at', '>=', $request->maxdate);
+                                    })->orderBy('created_at', 'desc')->paginate(15);
 
             return response()->json([
-                'success' => true,
-                'message' => 'The operation has been successfully processed',
-                'account' => $account,
-                'transfers' => $transfers,
-                'ccpayments' => $ccpayments
+                'success' => true, 'message' => 'The operation has been successfully processed',
+                'account' => $account, 'transfers' => $transfers, 'ccpayments' => $ccpayments
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json([
-                'success' => false,
-                'message' => 'An error has occurred, please try again later',
-                'exception' => $e
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
             ], 500);
         }
     }

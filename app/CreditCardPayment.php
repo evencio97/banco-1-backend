@@ -9,10 +9,10 @@ class CreditCardPayment extends Model
 {
     use SoftDeletes;
 
-    protected $dates = ['ccp_deleted_at'];
-    const DELETED_AT = 'ccp_deleted_at';
-    const CREATED_AT = 'ccp_created_at';
-    const UPDATED_AT = 'ccp_updated_at';
+    protected $dates = ['deleted_at'];
+    const DELETED_AT = 'deleted_at';
+    const CREATED_AT = 'created_at';
+    const UPDATED_AT = 'updated_at';
 
     protected $table = 'credit_card_payments';
 

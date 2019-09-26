@@ -9,10 +9,10 @@ class Transfer extends Model
 {
     use SoftDeletes;
 
-    protected $dates = ['tra_deleted_at'];
-    const DELETED_AT = 'tra_deleted_at';
-    const CREATED_AT = 'tra_created_at';
-    const UPDATED_AT = 'tra_updated_at';
+    protected $dates = ['deleted_at'];
+    const DELETED_AT = 'deleted_at';
+    const CREATED_AT = 'created_at';
+    const UPDATED_AT = 'updated_at';
 
     protected $table = 'transfers';
 
