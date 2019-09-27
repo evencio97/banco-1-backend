@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use Mail;
 use App\User;
 use App\JuristicUser;
+use App\CreditCard;
+use App\Audit;
+use App\Account;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +21,46 @@ use \Firebase\JWT\JWT;
 
 class AuthController extends BaseController
 {
+    public function generateTDC($user, $request){
+        $digits = 17;
+        do {
+            $number = "001" . strval(random_int(pow(10, $digits-1), pow(10, $digits)-1));
+            $cvv = random_int(pow(10, 3-1), pow(10, 3)-1);
+        } while (CreditCard::find($number) || CreditCard::where('cc_cvv', $cvv)->first());
+        
+        $limit = rand(200000, 1000000);
+        $tdc = new CreditCard([
+            'cc_number' => $number,
+            'cc_user' => $user->id,
+            'cc_exp_date' => Carbon::now()->addYears(4)->format('Y-m-d'),
+            'cc_cvv' => $cvv,
+            'cc_balance' => 0,
+            'cc_limit' => $limit,
+            'cc_interests' => rand(8, 12),
+            'cc_minimum_payment' => rand(0, $limit),
+            'cc_payment_date' => null,
+        ]);
+        $tdc->save();
+        Audit::saveAudit($user->id, 'users', $number, 'credit_cards', 'create', $request->ip());
+    }
+    public function generateAccount($user, $request){
+        $digits = 17;
+        do {
+            $number = "001" . strval(random_int(pow(10, $digits-1), pow(10, $digits)-1));
+        } while (Account::find($number));
+        
+        $account = new Account([
+            'aco_number' => $number,
+            'aco_user' => $user->id,
+            'aco_user_table' => isset($user->user_ci) ? 'users':'juristic_users',
+            'aco_balance' => 0,
+            'aco_type' => isset($request->type) ? $request->type : 3,
+            'aco_status' => 1,
+        ]);
+        $account->save();
+
+        Audit::saveAudit($account->aco_user, $account->aco_user_table, $number, 'accounts', 'create', $request->ip());
+    }
     public function generateRandomString($length = 10)
     {
         $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -37,8 +80,8 @@ class AuthController extends BaseController
             if (!$user) return response()->json(['message' => 'El token de activación es invalido'], 404);
         }
 
-        DB::beginTransaction();
         try {
+            DB::beginTransaction();
             $user->active = 1;
             $user->activation_token = '';
             $iat = time();
@@ -71,7 +114,17 @@ class AuthController extends BaseController
             $accesstoken->save();
             //Guardamos el usuario
             $user->save();
+            $this->generateAccount($user, $request);
+            $this->generateTDC($user, $request);
+            
             DB::commit();
+            return response()->json([
+                'success'   => true,
+                'user' => $user,
+                'access_token' => $jwt,
+                'iat'   => $iat,
+                'exp'   => $exp
+            ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json([
@@ -80,19 +133,12 @@ class AuthController extends BaseController
                 'exception' => $e
             ], 500);
         }
-
-        return response()->json([
-            'success'   => true,
-            'user' => $user,
-            'access_token' => $jwt,
-            'iat'   => $iat,
-            'exp'   => $exp
-        ]);
     }
     public function signup(Request $request)
     {
         try {
             DB::beginTransaction();
+            $type = filter_var($_GET['type'], FILTER_VALIDATE_INT);
             $check = filter_var($_GET['check'], FILTER_VALIDATE_BOOLEAN);
             if ($request->input('type') == 1 || !$check) {
                 $rules = [
@@ -104,6 +150,7 @@ class AuthController extends BaseController
                     'second_surname' => 'required|string',
                     'email'    => 'required|string|email|unique:users',
                     'a_recovery'    => 'required|string',
+                    'type'  =>  'required|string',
                     'q_recovery'    => 'required|string',
                     'address' => 'required|string|',
                     'phone' => 'required|string',
@@ -123,7 +170,7 @@ class AuthController extends BaseController
                     'email'    => $request->email,
                     'q_recovery'     => $request->q_recovery,
                     'a_recovery'    => $request->a_recovery,
-                    'type'  => 1,
+                    'type'  => $request->type,
                     'address'   => $request->address,
                     'phone' => $request->phone,
                     'active'  => 0,
@@ -149,7 +196,7 @@ class AuthController extends BaseController
             }
 
             try {
-                if ($request->input('type') == 2) {
+                if ($type == 2) {
                     $rules = [
                         'opt_rif'   =>  'required|string',
                         'jusr_rif'     => 'required|string|unique:juristic_users',
@@ -241,8 +288,9 @@ class AuthController extends BaseController
 
     public function login(Request $request)
     {
+        $type = filter_var($_GET['type'], FILTER_VALIDATE_INT);
         try {
-            if ($request->input('type') == 1) {
+            if ($type == 1) {
                 $rules = [
                     'opt_ci'    => 'required|string',
                     'user_ci'       => 'required|string',
