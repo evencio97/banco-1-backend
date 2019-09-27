@@ -115,7 +115,7 @@ class AuthController extends BaseController
             //Guardamos el usuario
             $user->save();
             $this->generateAccount($user, $request);
-            $this->generateTDC($user, $request);
+            if(isset($user->user_ci)) $this->generateTDC($user, $request);
             
             DB::commit();
             return response()->json([
@@ -183,7 +183,7 @@ class AuthController extends BaseController
                 $rules = [
                     'opt_ci'    => 'required|string',
                     'user_ci'   => 'required|string|unique:users',
-                    'password'  => 'required|string|confirmed'
+                    'password'  => 'required|string'
                 ];
                 $errors = $this->validateRequest($request, $rules);
                 if (count($errors)) {
