@@ -20,7 +20,7 @@ class BillsController extends BaseController{
                 'receiver' => 'required|string|exists:juristic_users,jusr_rif',
                 'refcode' => 'required|string',
                 'amount' => 'required|numeric',
-                'paydate' => 'required|date',
+                // 'paydate' => 'required|date',
                 'expdate' => 'required|date',
                 'password' => 'required|string'
             ];
@@ -35,8 +35,8 @@ class BillsController extends BaseController{
             if ($emitter->password != $request->password){
                 return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
             }
-            if ($request->paydate >= $request->expdate || $request->paydate < Carbon::now()->format('Y-m-d')){
-                return response()->json(['success' => false, 'message' => 'The payment or expiration date are incorrect'], 422);
+            if ($request->expdate <= Carbon::now()->format('Y-m-d')){
+                return response()->json(['success' => false, 'message' => 'The expiration date are incorrect'], 422);
             }
             if ($request->amount <= 0){
                 return response()->json(['success' => false, 'message' => 'The amount is incorrect'], 422);
