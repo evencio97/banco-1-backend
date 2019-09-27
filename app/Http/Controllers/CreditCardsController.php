@@ -17,7 +17,7 @@ class CreditCardsController extends BaseController
 {
     public function create(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -71,7 +71,7 @@ class CreditCardsController extends BaseController
 
     public function update(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -118,7 +118,7 @@ class CreditCardsController extends BaseController
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || !$user->get('id')) return response()->json(['success' => false, 'message' => 'You have to login to do this operation'], 422);
             
             $tdc = CreditCard::where('cc_number',$request->number)->where('cc_user', $user->id)->first();
@@ -145,12 +145,18 @@ class CreditCardsController extends BaseController
     
     public function getCreditCards(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user && !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
-            $tdcs = CreditCards::where('cc_user', $user->id)->get();
-
+            $tdcs = CreditCard::where('cc_user', $user->id)->get();
+            
+            if ($request->get('accounts')){
+                $accounts = Account::where('aco_user', $user->id)->where('aco_user_table', 'users')->where('aco_status', 1)->get();
+                return response()->json([
+                    'success' => true, 'message' => 'The operation has been successfully processed', 'tdcs' => $tdcs, 'accounts' => $accounts
+                ], 200);   
+            }
             return response()->json([
                 'success' => true, 'message' => 'The operation has been successfully processed', 'tdcs' => $tdcs
             ], 200);
@@ -164,7 +170,7 @@ class CreditCardsController extends BaseController
 
     public function getCreditCard(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user && !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
@@ -175,7 +181,7 @@ class CreditCardsController extends BaseController
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
-            $tdc = CreditCards::when($user->type != 3, function ($query) use ($user) {
+            $tdc = CreditCard::when($user->type != 3, function ($query) use ($user) {
                                     return $query->where('cc_user', $user->id);
                                 })->where('cc_number', $request->number)->first();
             if(!$tdc) return response()->json(['success' => false, 'message' => 'The credit card doesnt exists'], 422);
@@ -193,11 +199,11 @@ class CreditCardsController extends BaseController
 
     public function getCreditCardsAdmin(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user && !$user->get('type') != 3){
                 return response()->json(['success' => false, 'message' => 'You have to be admin to make this operation'], 422);
             }
-            $tdcs = CreditCards::when($request->get('expdate'), function ($query) use ($request) {
+            $tdcs = CreditCard::when($request->get('expdate'), function ($query) use ($request) {
                                     return $query->where('cc_exp_date', $request->expdate);
                                 })->when($request->get('status'), function ($query) use ($request) {
                                     return $query->where('cc_status', $request->status);
@@ -207,6 +213,31 @@ class CreditCardsController extends BaseController
 
             return response()->json([
                 'success' => true, 'message' => 'The operation has been successfully processed', 'tdcs' => $tdcs
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function getLastUserPurchases(Request $request){
+        try {
+            $user = $request->get('user');
+            if (!$user && !$user->get('id')){
+                return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
+            }
+            $tdcs = CreditCard::where('cc_user', $user->id)->get();
+            $user_tdcs = array();
+            foreach ($tdcs as $tdc) {
+                $user_tdcs[] = $tdc->cc_number;
+            }
+            
+            $purchases = Purchases::whereIn('pur_creditcard', $user_tdcs)->join('juristic_users', 'jusr_rif', '=', 'pur_business')->limit(20)->get();
+
+            return response()->json([
+                'success' => true, 'message' => 'The operation has been successfully processed', 'purchases' => $purchases
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -228,7 +259,7 @@ class CreditCardsController extends BaseController
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user && !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
@@ -257,9 +288,9 @@ class CreditCardsController extends BaseController
             $tdc->cc_balance -= $request->amount;
             $tdc->save();
             $payment = new CreditCardPayment([
-                'ccp_credit_card' => $tdc->cc_number, 
+                'ccp_creditcard' => $tdc->cc_number, 
                 'ccp_account' => $account->aco_number,
-                'cpp_description' => $request->get('description'),
+                'ccp_description' => $request->get('description'),
                 'ccp_amount' => $request->amount,
                 'ccp_status' => 1,
                 'ccp_client_ip' => $request->ip()

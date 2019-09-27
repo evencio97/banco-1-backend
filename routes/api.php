@@ -34,12 +34,13 @@ Route::group(['prefix' => 'account', 'middleware' => 'jwtAuth'], function () {
     Route::post('', 'AccountController@create');
     Route::post('update', 'AccountController@update');
     // Route::post('deposit', 'AccountController@deposit');
-    Route::post('transfer', 'AccountController@transfer');
+    Route::post('transfer', 'AccountController@transferSameBank');
+    Route::post('transfer/other-bank', 'AccountController@transferOtherBank');
     Route::post('receive', 'AccountController@receive');
-    Route::get('balance', 'AccountController@getAccountBalance');
-    Route::get('balances', 'AccountController@getAccountsBalance');
-    Route::post('balance/admin', 'AccountController@getAccountsBalanceAdmin');
-    Route::get('balance/admin/all', 'AccountController@getAllAccountsBalanceAdmin');
+    Route::post('one', 'AccountController@getAccount');
+    Route::get('user', 'AccountController@getAccounts');
+    Route::post('one/admin', 'AccountController@getAccountsAdmin');
+    Route::get('all/admin', 'AccountController@getAllAccountsAdmin');
     Route::post('moves', 'AccountController@getAccountMoves');
 });
 
@@ -51,7 +52,7 @@ Route::group(['prefix' => 'bill', 'middleware' => 'jwtAuth'], function () {
     Route::get('', 'BillsController@getBills');
     Route::get('pay', 'BillsController@getPayBills');
     Route::get('open', 'BillsController@getOpenBills');
-    Route::post('expired', 'BillsController@getExpBills');
+    Route::get('expired', 'BillsController@getExpBills');
 });
 
 Route::group(['prefix' => 'tdc', 'middleware' => 'jwtAuth'], function () {
@@ -60,6 +61,7 @@ Route::group(['prefix' => 'tdc', 'middleware' => 'jwtAuth'], function () {
     Route::post('update/status', 'CreditCardsController@changeStatus');
     Route::post('pay', 'CreditCardsController@payCreditCard');
     Route::post('purchase', 'CreditCardsController@purchase');
+    Route::get('purchases/last', 'CreditCardsController@getLastUserPurchases');
     Route::get('', 'CreditCardsController@getCreditCards');
     Route::get('admin', 'CreditCardsController@getCreditCardsAdmin');
     Route::get('one', 'CreditCardsController@getCreditCard');

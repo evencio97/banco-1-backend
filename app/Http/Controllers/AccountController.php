@@ -2,21 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Mail;
-use App\Account;
 use App\User;
-use App\JuristicUser;
-use App\Transfer;
-use App\CreditCardPayment;
 use App\Audit;
+use App\Account;
+use App\Transfer;
+use Carbon\Carbon;
+use App\JuristicUser;
+use App\CreditCardPayment;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AccountController extends BaseController
 {
     public function create(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -90,7 +91,7 @@ class AccountController extends BaseController
             if (!$account){
                 return response()->json(['success' => false, 'message' => 'The account dont exist'], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -140,7 +141,7 @@ class AccountController extends BaseController
             if ($account->aco_status == 0){
                 return response()->json(['success' => false, 'message' => 'The account is blocked up'], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->id != $account->aco_user){
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of this account'], 422);
             }
@@ -175,7 +176,7 @@ class AccountController extends BaseController
         }
     }
 
-    public function getAccountBalance(Request $request){
+    public function getAccount(Request $request){
         try {
             $rules = [
                 'number' => 'required|string|exists:accounts,aco_number'
@@ -185,7 +186,7 @@ class AccountController extends BaseController
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
             $account = Account::find($request->number);
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || ($user->get('id') != $account->aco_user && $user->type != 3)){
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of the account'], 422);
             }
@@ -205,7 +206,7 @@ class AccountController extends BaseController
         }
     }
 
-    public function getAccountsBalanceAdmin(Request $request){
+    public function getAccountsAdmin(Request $request){
         try {
             $rules = [
                 'user_id' => 'required|string',
@@ -215,7 +216,7 @@ class AccountController extends BaseController
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -225,7 +226,8 @@ class AccountController extends BaseController
             if (!DB::table($request->user_table)->where('id', $request->user_id)-first()){
                 return response()->json(['success' => false, 'message' => 'The user doesnt exist'], 422);
             }
-            $accounts = Account::where('aco_user_table', $request->user_table)->where('aco_user', $request->user_id)->get();
+            $accounts = Account::where('aco_user_table', $request->user_table)->where('aco_user', $request->user_id)
+                                ->orderBy('aco_created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,
@@ -242,13 +244,13 @@ class AccountController extends BaseController
         }
     }
 
-    public function getAllAccountsBalanceAdmin(Request $request){
+    public function getAllAccountsAdmin(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
-            $accounts = Account::paginate(15);
+            $accounts = Account::orderBy('aco_created_at', 'desc')->paginate(15);
 
             return response()->json([
                 'success' => true,
@@ -265,13 +267,16 @@ class AccountController extends BaseController
         }
     }
 
-    public function getAccountsBalance(Request $request){
+    public function getAccounts(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
-            $accounts = Account::where('aco_user_table', $user->get('rif')? 'juristic_users':'users')->where('aco_user', $user->id)->get();
+            $accounts = Account::where('aco_user_table', $user->get('jusr_rif')? 'juristic_users':'users')->where('aco_user', $user->id)
+                                ->when($request->get('status'), function ($query) use ($request) {
+                                    return $query->where('aco_status', $request->status);
+                                })->orderBy('aco_created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,
@@ -291,67 +296,66 @@ class AccountController extends BaseController
     public function getAccountMoves(Request $request){
         try {
             $rules = [
-                'number' => 'required|string|exists:accounts,aco_number'
+                'number' => 'required|string|exists:accounts,aco_number',
+                'option' => 'required|string'
             ];
             $errors = $this->validateRequest($request, $rules);
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
             $account = Account::find($request->number);
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || ($user->get('id') != $account->aco_user && $user->type != 3)){
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of the account'], 422);
+            }
+
+            $date = null;
+            if ($request->option != 'custom'){
+                if($request->option == 'today') $date = Carbon::now()->format('Y-m-d');
+                if($request->option == 'week') $date = Carbon::now()->subDays(7)->format('Y-m-d');
+                if($request->option == 'month') $date = Carbon::now()->subDays(30)->format('Y-m-d');
             }
 
             $transfers = Transfer::where(function ($query) use ($account) {
                                         $query->where('tra_account_emitter', $account->aco_number)
                                         ->orWhere('tra_account_receiver', $account->aco_number);
                                     })
-                                    ->when($request->get('today'), function ($query) use ($request) {
-                                        return $query->whereDate('tra_created_at', '=', $request->today);
+                                    ->when($request->option!='custom' && $date, function ($query) use ($date) {
+                                        return $query->whereDate('created_at', '>=', $date);
                                     })
-                                    ->when($request->get('week'), function ($query) use ($request) {
-                                        return $query->whereDate('tra_created_at', '>=', $request->week);
-                                    })
-                                    ->when($request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
-                                        return $query->whereDate('tra_created_at', '>=', $request->mindate)
-                                                    ->whereDate('tra_created_at', '<=', $request->maxdate);
-                                    })->orderBy('tra_created_at', 'desc')->paginate(15);
+                                    ->when($request->option=='custom' && $request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
+                                        return $query->whereDate('created_at', '>=', $request->mindate)
+                                                    ->whereDate('created_at', '<=', $request->maxdate);
+                                    })->orderBy('created_at', 'desc')->paginate(15);
 
             $ccpayments = CreditCardPayment::where('ccp_account', $account->aco_number)
-                                    ->when($request->get('today'), function ($query) use ($request) {
-                                        return $query->whereDate('ccp_created_at', '=', $request->today);
+                                    ->when($request->option!='custom' && $date, function ($query) use ($date) {
+                                        return $query->whereDate('created_at', '>=', $date);
                                     })
-                                    ->when($request->get('week'), function ($query) use ($request) {
-                                        return $query->whereDate('ccp_created_at', '>=', $request->week);
-                                    })
-                                    ->when($request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
-                                        return $query->whereDate('ccp_created_at', '>=', $request->mindate)
-                                                    ->whereDate('ccp_created_at', '<=', $request->maxdate);
-                                    })->orderBy('ccp_created_at', 'desc')->paginate(15);
+                                    ->when($request->option=='custom' && $request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
+                                        return $query->whereDate('created_at', '<=', $request->mindate)
+                                                    ->whereDate('created_at', '>=', $request->maxdate);
+                                    })->orderBy('created_at', 'desc')->paginate(15);
 
             return response()->json([
-                'success' => true,
-                'message' => 'The operation has been successfully processed',
-                'account' => $account,
-                'transfers' => $transfers,
-                'ccpayments' => $ccpayments
+                'success' => true, 'message' => 'The operation has been successfully processed',
+                'account' => $account, 'transfers' => $transfers, 'ccpayments' => $ccpayments
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json([
-                'success' => false,
-                'message' => 'An error has occurred, please try again later',
-                'exception' => $e
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
             ], 500);
         }
     }
 
-    public function transfer(Request $request){
+    public function transferSameBank(Request $request){
         try {
             $rules = [
                 'emitter' => 'required|string|exists:accounts,aco_number',
-                'receiver' => 'required|string',
+                'receiver' => 'required|string|exists:accounts,aco_number',
+                'type' => 'required|string',
+                'identifier' => 'required|integer',
                 'amount' => 'required|integer',
                 'password' => 'required|string'
             ];
@@ -363,40 +367,28 @@ class AccountController extends BaseController
             if ($request->amount < 1) return response()->json(['success' => false, 'message' => 'The amount is incorrect'], 422);
             $emitter = Account::find($request->emitter);
             //Validate user
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->id != $emitter->aco_user) return response()->json(['success' => false, 'message' => 'You dont are the owner of the emitter account'], 422);
             $password = DB::table($emitter->aco_user_table)->where('id', $emitter->aco_user)->first();
             if ($password->password != $request->password) return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
-            
             //validate emitter acount
             if ($emitter->aco_status != 1) return response()->json(['success' => false, 'message' => 'The account is not active'], 422);
             if ($request->amount > $emitter->aco_balance) return response()->json(['success' => false, 'message' => 'You dont have enough money'], 422);
-            
-            $bank = substr($request->receiver, 0, 3);
-            // if ($bank == '001' ){
-                //same bank
-                $result = transferSameBank($request, $emitter);
-            // } else{
-            //     // banco 2
-            //     $result = 
-            // }
-
-            return $result;
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'An error has occurred, please try again later',
-                'exception' => $e
-            ], 500);
-        }
-    }
-
-    public function transferSameBank(Request $request, $emitter){
-        try {
+            // Validate identifier type            
+            if ($request->type!='V' && $request->type!='v' && $request->type != 'j' && $request->type != 'J'
+                && $request->type != 'e' && $request->type != 'E'){
+                return response()->json(['success' => false, 'message' => 'The identifier type is incorrect'], 422);
+            }
             // validate receiver account
-            $receiver = Account::find($request->receiver);
+            $receiver_table = $request->type=='j' || $request->type=='J'? 'juristic_users':'users';
+            $receiver = Account::where('aco_number', $request->receiver)
+                            ->join($receiver_table, 'id', '=', 'aco_user')->first();
+            // $user_receiver = DB::table($receiver->aco_user_table)->where('id', $receiver->aco_user)->first();
             if (!$receiver) return response()->json(['success' => false, 'message' => 'The receiver account dont exists'], 422);
+            if (($receiver_table == 'juristic_users' && $receiver->jusr_rif != $request->identifier) ||
+                ($receiver_table == 'users' && $receiver->user_ci != $request->identifier)) {
+                return response()->json(['success' => false, 'message' => 'The identifier is incorrect'], 422);
+            }
             if ($receiver->aco_status != 1) return response()->json(['success' => false, 'message' => 'You cant transfer to a no active account'], 422);
             
             DB::beginTransaction();
@@ -416,14 +408,13 @@ class AccountController extends BaseController
             $transfer->save();
 
             Audit::saveAudit($emitter->aco_user, $emitter->aco_user_table, $transfer->tra_number, 'transfers', 'create', $request->ip());
-            $user_receiver = DB::table($receiver->aco_user_table)->where('id', $receiver->aco_user)->first();
             
             DB::commit();
             try {
-                Mail::send([], [], function ($message) use ($transfer, $user_receiver) {
+                Mail::send([], [], function ($message) use ($transfer, $receiver, $receiver_table) {
                     $message->from('banco1enlinea@gmail.com', 'Banco 1')
                     ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
-                    ->to($user_receiver->get('jusr_rif')? $user_receiver->jusr_email:$user_receiver->email)->subject('Banco 1 Siempre Contigo')
+                    ->to($receiver_table == 'juristic_users'? $receiver->jusr_email:$receiver->email)->subject('Banco 1 Siempre Contigo')
                     ->setBody('Ha recibido una transferencia con codigo de referencia '.$transfer->tra_number.' por '.$transfer->tra_amount.'BsS');
                 });
             } catch (\Exception $e) {}
@@ -431,6 +422,22 @@ class AccountController extends BaseController
             return response()->json([
                 'success' => true, 'message' => 'The transfer has been successfully processed',
                 'transfer' => ['number' => $transfer->tra_number, 'status' => $transfer->tra_status, 'amount' => $transfer->tra_amount]
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'An error has occurred, please try again later',
+                'exception' => $e
+            ], 500);
+        }
+    }
+
+    public function transferOtherBank(Request $request){
+        try { 
+            return response()->json([
+                'success' => true, 'message' => 'Under construction',
+                'transfer' => []
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();

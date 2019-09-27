@@ -23,4 +23,9 @@ class Bill extends Model
         'bil_ref_code', 'bil_description', 'bil_amount',
         'bil_paydate', 'bil_expdate', 'bil_status'
     ];
+
+    protected $casts = [
+        'bil_emitter'  =>  'string',
+        'bil_receiver'  =>  'string'
+    ];
 }

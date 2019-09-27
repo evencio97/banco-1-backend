@@ -21,9 +21,9 @@ class CreateCreditCardPaymentsTable extends Migration
             $table->float('ccp_amount', 10, 2);
             $table->integer('ccp_status')->default(0)->comment('0 procesando / 1 aprobado / 2 fallida');
             $table->string('ccp_client_ip');
-            $table->timestamp('ccp_created_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
-            $table->timestamp('ccp_updated_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
-            $table->timestamp('ccp_deleted_at')->nullable();
+            $table->timestamp('created_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
+            $table->timestamp('updated_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
+            $table->timestamp('deleted_at')->nullable();
             $table->foreign('ccp_creditcard')->references('cc_number')->on('credit_cards');
             $table->foreign('ccp_account')->references('aco_number')->on('accounts');
             $table->index('ccp_client_ip');
