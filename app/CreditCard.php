@@ -20,7 +20,7 @@ class CreditCard extends Model
 
     protected $fillable = [
         'cc_user', 'cc_exp_date', 'cc_cvv',
-        'cc_balance', 'cc_limit', 'cc_interests',
+        'cc_balance', 'cc_limit', 'cc_interests', 'cc_number',
         'cc_minimum_payment', 'cc_paydate', 'cc_status'
     ];
 
