@@ -17,7 +17,7 @@ class CreditCardsController extends BaseController
 {
     public function create(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -71,7 +71,7 @@ class CreditCardsController extends BaseController
 
     public function update(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -118,7 +118,7 @@ class CreditCardsController extends BaseController
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || !$user->get('id')) return response()->json(['success' => false, 'message' => 'You have to login to do this operation'], 422);
             
             $tdc = CreditCard::where('cc_number',$request->number)->where('cc_user', $user->id)->first();
@@ -145,7 +145,7 @@ class CreditCardsController extends BaseController
     
     public function getCreditCards(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user && !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
@@ -170,7 +170,7 @@ class CreditCardsController extends BaseController
 
     public function getCreditCard(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user && !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
@@ -199,7 +199,7 @@ class CreditCardsController extends BaseController
 
     public function getCreditCardsAdmin(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user && !$user->get('type') != 3){
                 return response()->json(['success' => false, 'message' => 'You have to be admin to make this operation'], 422);
             }
@@ -222,6 +222,31 @@ class CreditCardsController extends BaseController
         }
     }
 
+    public function getLastUserPurchases(Request $request){
+        try {
+            $user = $request->get('user');
+            if (!$user && !$user->get('id')){
+                return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
+            }
+            $tdcs = CreditCard::where('cc_user', $user->id)->get();
+            $user_tdcs = array();
+            foreach ($tdcs as $tdc) {
+                $user_tdcs[] = $tdc->cc_number;
+            }
+            
+            $purchases = Purchases::whereIn('pur_creditcard', $user_tdcs)->join('juristic_users', 'jusr_rif', '=', 'pur_business')->limit(20)->get();
+
+            return response()->json([
+                'success' => true, 'message' => 'The operation has been successfully processed', 'purchases' => $purchases
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
+        }
+    }
+
     public function payCreditCard(Request $request){
         try {
             $rules = [
@@ -234,7 +259,7 @@ class CreditCardsController extends BaseController
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
-            $user = $request;//->user();
+            $user = $request->get('user');
             if (!$user && !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }

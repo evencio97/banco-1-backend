@@ -61,6 +61,7 @@ Route::group(['prefix' => 'tdc'/*, 'middleware' => 'auth:api'*/], function () {
     Route::post('update/status', 'CreditCardsController@changeStatus');
     Route::post('pay', 'CreditCardsController@payCreditCard');
     Route::post('purchase', 'CreditCardsController@purchase');
+    Route::get('purchases/last', 'CreditCardsController@getLastUserPurchases');
     Route::get('', 'CreditCardsController@getCreditCards');
     Route::get('admin', 'CreditCardsController@getCreditCardsAdmin');
     Route::get('one', 'CreditCardsController@getCreditCard');

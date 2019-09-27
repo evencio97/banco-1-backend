@@ -17,7 +17,7 @@ class AccountController extends BaseController
 {
     public function create(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -91,7 +91,7 @@ class AccountController extends BaseController
             if (!$account){
                 return response()->json(['success' => false, 'message' => 'The account dont exist'], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -141,7 +141,7 @@ class AccountController extends BaseController
             if ($account->aco_status == 0){
                 return response()->json(['success' => false, 'message' => 'The account is blocked up'], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->id != $account->aco_user){
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of this account'], 422);
             }
@@ -186,7 +186,7 @@ class AccountController extends BaseController
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
             $account = Account::find($request->number);
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || ($user->get('id') != $account->aco_user && $user->type != 3)){
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of the account'], 422);
             }
@@ -216,7 +216,7 @@ class AccountController extends BaseController
             if(count($errors)){
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
@@ -226,7 +226,8 @@ class AccountController extends BaseController
             if (!DB::table($request->user_table)->where('id', $request->user_id)-first()){
                 return response()->json(['success' => false, 'message' => 'The user doesnt exist'], 422);
             }
-            $accounts = Account::where('aco_user_table', $request->user_table)->where('aco_user', $request->user_id)->get();
+            $accounts = Account::where('aco_user_table', $request->user_table)->where('aco_user', $request->user_id)
+                                ->orderBy('aco_created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,
@@ -245,11 +246,11 @@ class AccountController extends BaseController
 
     public function getAllAccountsAdmin(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->type != 3){
                 return response()->json(['success' => false, 'message' => 'Have to be admin to make this operation'], 422);
             }
-            $accounts = Account::paginate(15);
+            $accounts = Account::orderBy('aco_created_at', 'desc')->paginate(15);
 
             return response()->json([
                 'success' => true,
@@ -268,14 +269,14 @@ class AccountController extends BaseController
 
     public function getAccounts(Request $request){
         try {
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
             $accounts = Account::where('aco_user_table', $user->get('jusr_rif')? 'juristic_users':'users')->where('aco_user', $user->id)
                                 ->when($request->get('status'), function ($query) use ($request) {
                                     return $query->where('aco_status', $request->status);
-                                })->get();
+                                })->orderBy('aco_created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,
@@ -303,7 +304,7 @@ class AccountController extends BaseController
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
             $account = Account::find($request->number);
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || ($user->get('id') != $account->aco_user && $user->type != 3)){
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of the account'], 422);
             }
@@ -323,8 +324,8 @@ class AccountController extends BaseController
                                         return $query->whereDate('created_at', '>=', $date);
                                     })
                                     ->when($request->option=='custom' && $request->get('maxdate') && $request->get('mindate'), function ($query) use ($request) {
-                                        return $query->whereDate('created_at', '<=', $request->mindate)
-                                                    ->whereDate('created_at', '>=', $request->maxdate);
+                                        return $query->whereDate('created_at', '>=', $request->mindate)
+                                                    ->whereDate('created_at', '<=', $request->maxdate);
                                     })->orderBy('created_at', 'desc')->paginate(15);
 
             $ccpayments = CreditCardPayment::where('ccp_account', $account->aco_number)
@@ -366,7 +367,7 @@ class AccountController extends BaseController
             if ($request->amount < 1) return response()->json(['success' => false, 'message' => 'The amount is incorrect'], 422);
             $emitter = Account::find($request->emitter);
             //Validate user
-            $user = $request->user();
+            $user = $request->get('user');
             if (!$user || $user->id != $emitter->aco_user) return response()->json(['success' => false, 'message' => 'You dont are the owner of the emitter account'], 422);
             $password = DB::table($emitter->aco_user_table)->where('id', $emitter->aco_user)->first();
             if ($password->password != $request->password) return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
