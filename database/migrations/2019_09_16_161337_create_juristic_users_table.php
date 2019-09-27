@@ -15,14 +15,17 @@ class CreateJuristicUsersTable extends Migration
     {
         Schema::create('juristic_users', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->unsignedBigInteger('jusr_rif')->unique();
+            $table->string('jusr_rif')->unique();
             $table->unsignedBigInteger('jusr_user');
+            $table->string('jusr_email');
             $table->string('jusr_company');
             $table->string('jusr_address', 300);
             $table->string('jusr_phone');
-            // $table->integer('jusr_active')->default(0);
-            // $table->string('password');
-            // $table->string('activation_token');
+            $table->string('password');
+            $table->string('q_recovery');
+            $table->string('a_recovery');
+            $table->string('activation_token');
+            $table->integer('active');
             $table->rememberToken();
             $table->timestamp('jusr_created_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
             $table->timestamp('jusr_updated_at')->default(\DB::raw('CURRENT_TIMESTAMP'));

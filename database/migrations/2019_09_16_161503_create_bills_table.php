@@ -27,8 +27,8 @@ class CreateBillsTable extends Migration
             $table->timestamp('bil_created_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
             $table->timestamp('bil_updated_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
             $table->timestamp('bil_deleted_at')->nullable();
-            $table->foreign('bil_emitter')->references('jusr_rif')->on('juristic_users');
-            $table->foreign('bil_receiver')->references('jusr_rif')->on('juristic_users');
+            $table->foreign('bil_emitter')->references('id')->on('juristic_users');
+            $table->foreign('bil_receiver')->references('id')->on('juristic_users');
             $table->foreign('bil_transfer')->references('tra_number')->on('transfers');
         });
     }

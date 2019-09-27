@@ -27,9 +27,9 @@ class JuristicUser extends Authenticatable
      * @var array
      */
     protected $fillable = [
-        'jusr_rif','jusr_user', 'jusr_company',
-        'jusr_address', 'jusr_phone',
-        'password', 'activation_token'
+        'jusr_rif','jusr_user', 'jusr_company', 'jusr_email', 'jusr_password',
+        'jusr_address', 'jusr_phone', 'q_recovery', 'a_recovery',
+        'password', 'activation_token', 'active'
     ];
 
     /**
@@ -38,7 +38,7 @@ class JuristicUser extends Authenticatable
      * @var array
      */
     protected $hidden = [
-        'password', 'remember_token', 'activation_token',
+        'jusr_password', 'remember_token', 'activation_token',
     ];
 
     /**

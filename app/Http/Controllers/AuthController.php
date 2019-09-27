@@ -10,112 +10,191 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use App\AccessToken;
+use App\AuthClient;
+use Illuminate\Support\Facades\Hash;
+
+use \Firebase\JWT\JWT;
 
 class AuthController extends BaseController
 {
-    public function signupActivate($token)
+    public function generateRandomString($length = 10)
     {
-        $user = User::where('activation_token', $token)->first();
-        if (!$user) return response()->json(['message' => 'Activation token is invalid'], 404);
+        $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $charactersLength = strlen($characters);
+        $randomString = '';
+        for ($i = 0; $i < $length; $i++) {
+            $randomString .= $characters[rand(0, $charactersLength - 1)];
+        }
+        return $randomString;
+    }
+    public function signupActivate(Request $request, $token)
+    {
+        $user = JuristicUser::where('activation_token', $token)->first();
 
-        $jusr_user = JuristicUser::where('jusr_user', $user->id)->first();
-        if (!$jusr_user) {
-            $user->type = 1;
-        } else {
-            $user->type = 2;
+        if (!$user) {
+            $user = User::where('activation_token', $token)->first();
+            if (!$user) return response()->json(['message' => 'El token de activación es invalido'], 404);
         }
 
-        $user->activation_token = '';
-        $tokenResult = $user->createToken('Personal Access Token');
-        $token = $tokenResult->token;
-        $token->save();
-        $user->save();
-        DB::commit();
+        DB::beginTransaction();
+        try {
+            $user->active = 1;
+            $user->activation_token = '';
+            $iat = time();
+            $exp = $iat + (60 * 60);
+            $key = $this->generateRandomString();
+
+            $token = array(
+                'iat' => $iat,
+                'exp' => $exp,
+                'data' => $user
+            );
+
+            $jwt = JWT::encode($token, $key);
+            $authclient = new AuthClient([
+                'user_id'   =>  isset($user->user_ci) ? $user->user_ci:$user->jusr_rif,
+                'secret'    =>  $key,
+                'client_url'    =>  $request->root(),
+                'ip'    => $request->ip(),
+                'revoked'   =>  0
+            ]);
+            //Agregamos el cliente asociado al token con el secret
+            $authclient->save();
+            $accesstoken = new AccessToken([
+                'client_id' =>  $authclient->id,
+                'user_id'   =>  isset($user->user_ci) ? $user->user_ci:$user->jusr_rif,
+                'token' =>  $jwt,
+                'revoked'   =>  0
+            ]);
+            //Agregamos el token de acceso asociada al cliente anterior y al usuario
+            $accesstoken->save();
+            //Guardamos el usuario
+            $user->save();
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'error' => true,
+                'message' => 'An error has occurred, please try again later',
+                'exception' => $e
+            ], 500);
+        }
 
         return response()->json([
+            'success'   => true,
             'user' => $user,
-            'juridic_user' => $user->type == 2 ? $jusr_user : false,
-            'access_token' => $tokenResult->accessToken,
-            'token_type'   => 'Bearer',
-            'expires_at'   => Carbon::parse(
-                $tokenResult->token->expires_at
-            )
-                ->toDateTimeString(),
+            'access_token' => $jwt,
+            'iat'   => $iat,
+            'exp'   => $exp
         ]);
     }
     public function signup(Request $request)
     {
-        DB::beginTransaction();
-
-        $rules = [
-            'opt_ci'    => 'required|string',
-            'user_ci'   => 'required|string|unique:users',
-            'first_name'     => 'required|string',
-            'middle_name' => 'required|string',
-            'first_surname'     => 'required|string',
-            'second_surname' => 'required|string',
-            'email'    => 'required|string|email|unique:users',
-            'a_recovery'    => 'required|string',
-            'q_recovery'    => 'required|string',
-            'address' => 'required|string|',
-            'phone' => 'required|string',
-            'type' => 'required|string',
-            'password' => 'required|string|confirmed'
-        ];
-        $errors = $this->validateRequest($request, $rules);
-        if (count($errors)) {
-            return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
-        }
         try {
-            $user = new User([
-                'user_ci'   => $request->opt_ci . $request->user_ci,
-                'first_name'     => $request->first_name,
-                'middle_name' => $request->middle_name,
-                'first_surname'     => $request->first_surname,
-                'second_surname' => $request->second_surname,
-                'email'    => $request->email,
-                'q_recovery'     => $request->q_recovery,
-                'a_recovery'    => $request->a_recovery,
-                'address'   => $request->address,
-                'phone' => $request->phone,
-                'type'  => 0,
-                'password' => bcrypt($request->password),
-                'activation_token'  => Str::random(60),
-            ]);
+            DB::beginTransaction();
+            $check = filter_var($_GET['check'], FILTER_VALIDATE_BOOLEAN);
+            if ($request->input('type') == 1 || !$check) {
+                $rules = [
+                    'opt_ci'    => 'required|string',
+                    'user_ci'   => 'required|string|unique:users',
+                    'first_name'     => 'required|string',
+                    'middle_name' => 'required|string',
+                    'first_surname'     => 'required|string',
+                    'second_surname' => 'required|string',
+                    'email'    => 'required|string|email|unique:users',
+                    'a_recovery'    => 'required|string',
+                    'q_recovery'    => 'required|string',
+                    'address' => 'required|string|',
+                    'phone' => 'required|string',
+                    'password' => 'required|string|confirmed'
+                ];
+                $errors = $this->validateRequest($request, $rules);
+                if (count($errors)) {
+                    return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+                }
 
-            $user->save();
-        } catch (Swift_TransportException $a) {
-            DB::rollBack();
-            return response()->json([
-                'error' => true,
-                'message' => 'Error creando el usuario',
-                'exception' => $a
-            ], 500);
-        }
-
-        if ($request->input('type') == 2) {
-            $rules = [
-                'jusr_rif'     => 'required|string|unique:juristic_users',
-                'jusr_company' => 'required|string',
-                'jusr_address' => 'required|string|',
-                'jusr_phone' => 'required|string',
-                'password' => 'required|string|confirmed',
-            ];
-            $errors = $this->validateRequest($request, $rules);
-            if (count($errors)) {
-                return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
-            }
-            try {
-                $jusr_user = new JuristicUser([
-                    'jusr_rif'     => $request->jusr_rif,
-                    'jusr_user' => $user->id,
-                    'jusr_company' => $request->jusr_company,
-                    'jusr_address'     => $request->jusr_address,
-                    'jusr_phone' => $request->jusr_phone,
-                    // 'jusr_email'    => $request->email,
-                    // 'password' => $user->password,
+                $user = new User([
+                    'user_ci'   => $request->opt_ci . $request->user_ci,
+                    'first_name'     => $request->first_name,
+                    'middle_name' => $request->middle_name,
+                    'first_surname'     => $request->first_surname,
+                    'second_surname' => $request->second_surname,
+                    'email'    => $request->email,
+                    'q_recovery'     => $request->q_recovery,
+                    'a_recovery'    => $request->a_recovery,
+                    'type'  => 1,
+                    'address'   => $request->address,
+                    'phone' => $request->phone,
+                    'active'  => 0,
+                    'password' => bcrypt($request->password),
+                    'activation_token'  => Str::random(60),
                 ]);
-                $jusr_user->save();
+                //Se registra usuario natural
+                $user->save();
+            } else {
+                $rules = [
+                    'opt_ci'    => 'required|string',
+                    'user_ci'   => 'required|string|unique:users',
+                    'password'  => 'required|string|confirmed'
+                ];
+                $errors = $this->validateRequest($request, $rules);
+                if (count($errors)) {
+                    return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+                }
+                //Se obtiene usuario natural ya registrado
+                $user = User::where('user_ci', $request->opt_ci . $request->user_ci)->first();
+                if (!$user) return response()->json(['success' => false, 'message' => 'No existe una cuenta afiliada a una persona con esa cédula'], 404);
+                if (!Hash::check($request->password, $user->password)) return response()->json(['success' => false, 'message' => 'Contraseña invalida'], 404);
+            }
+
+            try {
+                if ($request->input('type') == 2) {
+                    $rules = [
+                        'opt_rif'   =>  'required|string',
+                        'jusr_rif'     => 'required|string|unique:juristic_users',
+                        'jusr_email'    => 'required|string|unique:juristic_users',
+                        'jusr_q_recovery'     => 'required|string',
+                        'jusr_a_recovery'    => 'required|string',
+                        'jusr_company' => 'required|string',
+                        'jusr_address' => 'required|string|',
+                        'jusr_phone' => 'required|string',
+                        'jusr_password' => 'required|string|confirmed',
+                    ];
+                    $errors = $this->validateRequest($request, $rules);
+                    if (count($errors)) {
+                        return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+                    }
+                    $jusr_user = new JuristicUser([
+                        'jusr_rif'     => $request->opt_rif . $request->jusr_rif,
+                        'jusr_user' => $user->id,
+                        'jusr_company' => $request->jusr_company,
+                        'jusr_address'     => $request->jusr_address,
+                        'jusr_phone' => $request->jusr_phone,
+                        'jusr_email'    => $request->jusr_email,
+                        'active'   => 0,
+                        'q_recovery'     => $request->jusr_q_recovery,
+                        'a_recovery'    => $request->jusr_a_recovery,
+                        'password' => bcrypt($request->jusr_password),
+                        'activation_token'  => Str::random(60),
+                    ]);
+                    //Se registra al usuario juridico
+                    $jusr_user->save();
+                    $url = env('CLIENT_URL') . 'confirm-account/' . $jusr_user->activation_token;
+                    $data = array('jusr_company' => $jusr_user->jusr_company, 'admin_name' => $user->first_name, 'admin_surname' => $user->first_surname, 'url' => $url, 'client_url' => env('CLIENT_URL'));
+                    Mail::send('emails.juristic_activation', $data, function ($message) use ($jusr_user) {
+                        $message->from(env('MAIL_USERNAME'), 'Banco 1');
+                        $message->replyTo(env('MAIL_USERNAME'), 'Banco 1');
+                        $message->to($jusr_user->jusr_email, $jusr_user->jusr_company)->subject('Confirma tu cuenta');
+                    });
+                }
+                $url = env('CLIENT_URL') . 'confirm-account/' . $user->activation_token;
+                $data = array('first_name' => $user->first_name, 'middle_name' => $user->middle_name, 'first_surname' => $user->first_surname, 'second_surname' => $user->second_surname, 'url' => $url, 'client_url' => env('CLIENT_URL'));
+                Mail::send('emails.usr_activation', $data, function ($message) use ($user) {
+                    $message->from(env('MAIL_USERNAME'), 'Banco 1');
+                    $message->replyTo(env('MAIL_USERNAME'), 'Banco 1');
+                    $message->to($user->email, $user->first_name . ' ' . $user->first_surname)->subject('Confirma tu cuenta');
+                });
             } catch (Swift_TransportException $a) {
                 DB::rollBack();
                 return response()->json([
@@ -124,59 +203,108 @@ class AuthController extends BaseController
                     'exception' => $a
                 ], 500);
             }
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'error' => true,
+                'message' => 'An error has occurred, please try again later',
+                'exception' => $e
+            ], 500);
         }
-        $url = env('CLIENT_URL') . 'confirm-account/' . $user->activation_token;
-
-        $data = array('first_name' => $user->first_name, 'middle_name' => $user->middle_name, 'first_surname' => $user->first_surname, 'second_surname' => $user->second_surname, 'url' => $url, 'client_url' => env('CLIENT_URL'));
-        Mail::send('emails.usr_activation', $data, function ($message) use ($user) {
-            $message->from('banco-1@evenciohernandez.com.ve', 'Banco 1');
-            $message->replyTo('banco-1@evenciohernandez.com.ve', 'Banco 1');
-            $message->to($user->email, $user->first_name . ' ' . $user->first_surname)->subject('Confirma tu usuario');
-        });
         DB::commit();
         return response()->json([
-            'message' => 'Se ha registrado correctamente, solo falta confirmación de su correo electronico'
+            'success'   => true,
+            'message' => 'Se ha registrado correctamente, solo falta confirmación de su correo electrónico'
         ], 200);
     }
+
+    public function getToken($user, $request)
+    {
+        $matchThese = ['user_id' => isset($user->user_ci) ? $user->user_ci:$user->jusr_rif, 'client_url' => $request->root(), 'ip' => $request->ip(), 'revoked' => 0];
+        $authclient = AuthClient::where($matchThese)->first();
+        if (!$authclient) {
+            $key = $this->generateRandomString();
+            $authclient = new AuthClient([
+                'user_id'   =>  isset($user->user_ci) ? $user->user_ci:$user->jusr_rif,
+                'secret'    =>  $key,
+                'client_url'    => $request->root(),
+                'ip'    =>  $request->ip(),
+                'revoked'   =>  0
+            ]);
+            //Agregamos el cliente asociado al token con el secret
+            $authclient->save();
+        } else {
+            $key = $authclient->secret;
+        }
+        return ['key' => $key, 'auth_id' => $authclient->id];
+    }
+
     public function login(Request $request)
     {
-        $rules = [
-            'email'       => 'required|string|email',
-            'password'    => 'required|string',
-            'usr_remember_me' => 'boolean',
-        ];
-
-        $errors = $this->validateRequest($request, $rules);
-        if (count($errors)) {
-            return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
-        }
-
-        $credentials = request(['email', 'password']);
-        $credentials['type'] = $request->input('type');
-        $credentials['deleted_at'] = null;
         try {
-            DB::beginTransaction();
-            if (!Auth::attempt($credentials)) {
-                return response()->json(['success' => false, 'message' => 'Datos invalidos o cuenta no confirmada'], 401);
-            }
-            $user = $request->user();
-            $tokenResult = $user->createToken('Personal Access Token');
-            $token = $tokenResult->token;
-            $token->save();
-            if ($request->remember_me) {
-                $token->expires_at = Carbon::now()->addWeeks(1);
+            if ($request->input('type') == 1) {
+                $rules = [
+                    'opt_ci'    => 'required|string',
+                    'user_ci'       => 'required|string',
+                    'password'    => 'required|string',
+                    'usr_remember_me' => 'boolean',
+                ];
+
+                $errors = $this->validateRequest($request, $rules);
+                if (count($errors)) {
+                    return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+                }
+
+                $user = User::where('user_ci', $request->opt_ci . $request->user_ci)->first();
+                if (!$user) return response()->json(['success' => false, 'message' => 'No existe una cuenta afiliada a una persona con esa cédula'], 404);
+                if ($user->active == 0) return response()->json(['success' => false, 'message' => 'Recuerde que debe activar su cuenta antes de poder generar una sesión'], 404);
+                if (!Hash::check($request->password, $user->password)) return response()->json(['success' => false, 'message' => 'Contraseña invalida'], 404);
+            } else {
+                $rules = [
+                    'opt_rif'    => 'required|string',
+                    'jusr_rif'       => 'required|string',
+                    'password'    => 'required|string',
+                    'usr_remember_me' => 'boolean',
+                ];
+
+                $errors = $this->validateRequest($request, $rules);
+                if (count($errors)) {
+                    return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+                }
+                $user = JuristicUser::where('jusr_rif', $request->opt_rif . $request->jusr_rif)->first();
+                if (!$user) return response()->json(['success' => false, 'message' => 'No existe una cuenta afiliada a una empresa con ese rif']);
+                if ($user->active == 0) return response()->json(['success' => false, 'message' => 'Recuerde que debe activar su cuenta antes de poder generar una sesión'], 404);
+                if (!Hash::check($request->password, $user->password)) return response()->json(['success' => false, 'message' => 'Contraseña invalida']);
             }
 
-            if($user->type == 2) $jusr_user = JuristicUser::where('jusr_user', $user->id)->first();
+            $iat = time();
+            $exp = $iat + (60 * 60);
+            $key = $this->getToken($user, $request);
 
-            DB::commit();
+            $token = array(
+                'iat' => $iat,
+                'exp' => $exp,
+                'data' => $user
+            );
+
+            //Creamos el token
+            $jwt = JWT::encode($token, $key['key']);
+
+            $accesstoken = new AccessToken([
+                'client_id' =>  $key['auth_id'],
+                'user_id'   =>  isset($user->user_ci) ? $user->user_ci:$user->jusr_rif,
+                'token' =>  $jwt,
+                'revoked'   =>  0
+            ]);
+            //Agregamos el token de acceso asociada al cliente anterior y al usuario
+            $accesstoken->save();
+
             return response()->json([
-                'user' => $user->type == 2 ? $jusr_user : $user,
-                'access_token' => $tokenResult->accessToken,
-                'token_type'   => 'Bearer',
-                'expires_at'   => Carbon::parse(
-                    $tokenResult->token->expires_at
-                )->toDateTimeString(),
+                'success'   => true,
+                'user' => $user,
+                'access_token' => $jwt,
+                'iat'   => $iat,
+                'exp'   => $exp
             ]);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -190,21 +318,26 @@ class AuthController extends BaseController
 
     public function logout(Request $request)
     {
-        $request->user()->token()->revoke();
-        return response()->json(['message' =>
-        'Se ha desconectado correctamente', 'logout' => true]);
+        $user = $request->get('user');
+        try {
+            $matchThese = ['user_id' => isset($user->user_ci) ? $user->user_ci:$user->jusr_rif , 'ip' => $request->ip(), 'client_url' => $request->root(), 'revoked' => 0];
+            $client = AuthClient::where($matchThese)->first();
+            $tokenUpdate = AccessToken::where('client_id', $client->id)->update(['revoked' => 1]);
+            return response()->json(['success' => true, 'message' => 'Sesión terminada', 'cont' =>  $tokenUpdate]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'error' => true,
+                'message' => 'An error has occurred, please try again later',
+                'exception' => $e
+            ], 500);
+        }
     }
 
     public function user(Request $request)
     {
         try {
-            $user = $request->user;
-            if ($request->input('type') == 2) {
-                $jusr_user = JuristicUser::where('jusr_user', $user->id)->first();
-                return response()->json(['success' => true, 'user' => $jusr_user]);
-            } else {
-                return response()->json(['success' => true, 'user' => $user]);
-            }
+            return response()->json(['success' => true, 'user' => $request->get('user')]);
         } catch (\Throwable $e) {
             return response()->json([
                 'error' => true,
