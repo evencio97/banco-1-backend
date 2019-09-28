@@ -18,7 +18,7 @@ Route::group(['prefix' => 'auth','middleware' => 'cors'], function () {
     Route::post('signup', 'AuthController@signup');
     Route::get('signup/activate/{token}', 'AuthController@signupActivate');
   
-    Route::group(['middleware' => 'jwtAuth'], function() {
+Route::group(['middleware' => 'jwtAuth'], function() {
         Route::get('logout', 'AuthController@logout');
         Route::get('user', 'AuthController@user');
     });
@@ -36,12 +36,15 @@ Route::group(['prefix' => 'account', 'middleware' => 'jwtAuth'], function () {
     // Route::post('deposit', 'AccountController@deposit');
     Route::post('transfer', 'AccountController@transferSameBank');
     Route::post('transfer/other-bank', 'AccountController@transferOtherBank');
-    Route::post('receive', 'AccountController@receive');
     Route::post('one', 'AccountController@getAccount');
     Route::get('user', 'AccountController@getAccounts');
     Route::post('one/admin', 'AccountController@getAccountsAdmin');
     Route::get('all/admin', 'AccountController@getAllAccountsAdmin');
     Route::post('moves', 'AccountController@getAccountMoves');
+    // Rutas para Banco 2
+    Route::group(['prefix' => '', 'middleware' => 'bankAuth'], function () {
+        Route::post('receive', 'AccountController@receive');
+    });
 });
 
 

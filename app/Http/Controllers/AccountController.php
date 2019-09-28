@@ -268,7 +268,7 @@ class AccountController extends BaseController
     }
 
     public function getAccounts(Request $request){
-        try {
+        // try {
             $user = $request->get('user');
             if (!$user || !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
@@ -283,14 +283,14 @@ class AccountController extends BaseController
                 'message' => 'The operation has been successfully processed',
                 'accounts' => $accounts
             ], 200);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'An error has occurred, please try again later',
-                'exception' => $e
-            ], 500);
-        }
+        // } catch (\Throwable $e) {
+        //     DB::rollBack();
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'An error has occurred, please try again later',
+        //         'exception' => $e
+        //     ], 500);
+        // }
     }
 
     public function getAccountMoves(Request $request){

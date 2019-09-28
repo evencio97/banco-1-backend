@@ -326,7 +326,7 @@ class AuthController extends BaseController
             }
 
             $iat = time();
-            $exp = $iat + (60 * 60);
+            $exp = $iat + (60 * 1440);
             $key = $this->getToken($user, $request);
 
             $token = array(
@@ -373,7 +373,6 @@ class AuthController extends BaseController
             $tokenUpdate = AccessToken::where('client_id', $client->id)->update(['revoked' => 1]);
             return response()->json(['success' => true, 'message' => 'Sesión terminada', 'cont' =>  $tokenUpdate]);
         } catch (\Throwable $e) {
-            DB::rollBack();
             return response()->json([
                 'error' => true,
                 'message' => 'An error has occurred, please try again later',

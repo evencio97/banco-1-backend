@@ -64,6 +64,7 @@ class Kernel extends HttpKernel
         'cors' => \App\Http\Middleware\CORS::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'jwtAuth' => \App\Http\Middleware\JWTAuth::class,
+        'bankAuth' => \App\Http\Middleware\BanksAuth::class,
     ];
 
     /**
