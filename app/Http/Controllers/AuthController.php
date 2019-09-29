@@ -37,7 +37,7 @@ class AuthController extends BaseController
             'cc_balance' => 0,
             'cc_limit' => $limit,
             'cc_interests' => rand(8, 12),
-            'cc_minimum_payment' => rand(0, $limit),
+            'cc_minimum_payment' => rand(20, 30),
             'cc_payment_date' => null,
         ]);
         $tdc->save();
@@ -54,7 +54,7 @@ class AuthController extends BaseController
             'aco_user' => $user->id,
             'aco_user_table' => isset($user->user_ci) ? 'users':'juristic_users',
             'aco_balance' => 0,
-            'aco_type' => isset($request->type) ? $request->type : 3,
+            'aco_type' => isset($user->type) ? $user->type : 3,
             'aco_status' => 1,
         ]);
         $account->save();
