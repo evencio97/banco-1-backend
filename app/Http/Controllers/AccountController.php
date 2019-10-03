@@ -273,7 +273,7 @@ class AccountController extends BaseController
             if (!$user || !$user->get('id')){
                 return response()->json(['success' => false, 'message' => 'You have to be logged in'], 422);
             }
-            $accounts = Account::where('aco_user_table', $user->get('jusr_rif')? 'juristic_users':'users')->where('aco_user', $user->id)
+            $accounts = Account::where('aco_user_table', isset($user->jusr_rif)? 'juristic_users':'users')->where('aco_user', $user->id)
                                 ->when($request->get('status'), function ($query) use ($request) {
                                     return $query->where('aco_status', $request->status);
                                 })->orderBy('aco_created_at', 'desc')->get();

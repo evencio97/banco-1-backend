@@ -15,8 +15,8 @@ class CreateBillsTable extends Migration
     {
         Schema::create('bills', function (Blueprint $table) {
             $table->bigIncrements('bil_id');
-            $table->unsignedBigInteger('bil_emitter');
-            $table->unsignedBigInteger('bil_receiver');
+            $table->string('bil_emitter');
+            $table->string('bil_receiver');
             $table->unsignedBigInteger('bil_transfer')->nullable();
             $table->string('bil_ref_code');
             $table->string('bil_description')->nullable();
@@ -27,8 +27,6 @@ class CreateBillsTable extends Migration
             $table->timestamp('bil_created_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
             $table->timestamp('bil_updated_at')->default(\DB::raw('CURRENT_TIMESTAMP'));
             $table->timestamp('bil_deleted_at')->nullable();
-            $table->foreign('bil_emitter')->references('id')->on('juristic_users');
-            $table->foreign('bil_receiver')->references('id')->on('juristic_users');
             $table->foreign('bil_transfer')->references('tra_number')->on('transfers');
         });
     }
