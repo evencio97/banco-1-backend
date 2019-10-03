@@ -146,7 +146,7 @@ class AccountController extends BaseController
                 return response()->json(['success' => false, 'message' => 'You dont are the owner of this account'], 422);
             }
             $password = DB::table($account->aco_user_table)->where('id', $account->aco_user)->first();
-            if ($password->password != $request->password){
+            if (!Hash::check($request->password, $password->password)){
                 return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
             }
             if ($request->amount <= 0){
@@ -370,7 +370,7 @@ class AccountController extends BaseController
             $user = $request->get('user');
             if (!$user || $user->id != $emitter->aco_user) return response()->json(['success' => false, 'message' => 'You dont are the owner of the emitter account'], 422);
             $password = DB::table($emitter->aco_user_table)->where('id', $emitter->aco_user)->first();
-            if ($password->password != $request->password) return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
+            if (!Hash::check($request->password, $password->password)) return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
             //validate emitter acount
             if ($emitter->aco_status != 1) return response()->json(['success' => false, 'message' => 'The account is not active'], 422);
             if ($request->amount > $emitter->aco_balance) return response()->json(['success' => false, 'message' => 'You dont have enough money'], 422);

@@ -105,7 +105,7 @@ class BillsController extends BaseController
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
             $emitter = DB::table('juristic_users')->where('jusr_rif', $request->emitter)->first();
-            if ($emitter->password != $request->password) {
+            if (!Hash::check($request->password, $emitter->password)) {
                 return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
             }
             $bill = Bill::where('bil_emitter', $request->emitter)->where('bil_ref_code', $request->refcode)->first();
@@ -150,77 +150,77 @@ class BillsController extends BaseController
     public function payBill(Request $request)
     {
         $user = $request->get('user');
-        // try {
-        $rules = [
-            'bill_ref_cod' => 'required|string|exists:bills,bil_ref_code',
-            'account_emitter' => 'required|string|exists:accounts,aco_number',
-            'account_receiver' => 'required|string|exists:accounts,aco_number',
-            'password' => 'required|string'
-        ];
-        $errors = $this->validateRequest($request, $rules);
-        if (count($errors)) {
-            return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+        try {
+            $rules = [
+                'bill_ref_cod' => 'required|string|exists:bills,bil_ref_code',
+                'account_emitter' => 'required|string|exists:accounts,aco_number',
+                'account_receiver' => 'required|string|exists:accounts,aco_number',
+                'password' => 'required|string'
+            ];
+            $errors = $this->validateRequest($request, $rules);
+            if (count($errors)) {
+                return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
+            }
+            if (!Hash::check($request->password, $user->password)) return response()->json(['success' => false, 'message' => 'Contraseña invalida'], 422);
+            $emitter = Account::where('aco_number', $request->account_emitter)->where('aco_user_table', 'juristic_users')->first();
+
+            if (!$user || !$user->get('id') || $user->id != $emitter->aco_user) {
+                return response()->json(['success' => false, 'message' => 'You dont are the owner of the emitter account'], 422);
+            }
+
+            //validate bill
+            $bill = Bill::where('bil_receiver', $user->jusr_rif)->where('bil_ref_code', $request->bill_ref_cod)->first();
+            if (!$bill) return response()->json(['success' => false, 'message' => 'The bill dont exist'], 422);
+            if ($bill->bil_status != 0) return response()->json(['success' => false, 'message' => 'The bill has been already pay'], 422);
+
+            //validate emitter and receiver account
+            if ($bill->bil_amount > $emitter->aco_balance) return response()->json(['success' => false, 'message' => 'You dont have enough money'], 422);
+            if ($emitter->aco_status == 0) return response()->json(['success' => false, 'message' => 'The account is blocked up'], 422);
+            $receiver = Account::find($request->account_receiver);
+            if ($receiver->aco_status == 0) {
+                return response()->json(['success' => false, 'message' => 'You cant transfer to a blocked up account'], 422);
+            }
+
+            DB::beginTransaction();
+
+            $emitter->aco_balance -= $bill->bil_amount;
+            $emitter->save();
+            $receiver->aco_balance += $bill->bil_amount;
+            $receiver->save();
+            $transfer = new Transfer([
+                'tra_account_emitter' => $request->account_emitter,
+                'tra_account_receiver' => $request->account_receiver,
+                'tra_description' => $request->get('description'),
+                'tra_amount' => $bill->bil_amount,
+                'tra_status' => 1,
+                'tra_client_ip' => $request->ip()
+            ]);
+            $transfer->save();
+            $bill->bil_transfer = $transfer->tra_number;
+            $bill->bil_paydate = Carbon::now()->format('Y-m-d');
+            $bill->bil_status = 1;
+            $bill->save();
+            Audit::saveAudit($user->id, 'juristic_users', $bill->bil_id, 'bills', 'pay', $request->ip());
+            $receiver = JuristicUser::where('jusr_rif', $bill->bil_emitter)->first();
+
+            DB::commit();
+
+            Mail::send([], [], function ($message) use ($receiver, $bill) {
+                $message->from('banco1enlinea@gmail.com', 'Banco 1')
+                    ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
+                    ->to($receiver->jusr_email)->subject('Banco 1 Siempre Contigo')
+                    ->setBody('Se ha pagado su factura con codigo de referencia ' . $bill->bil_ref_code);
+            });
+
+            return response()->json([
+                'success' => true, 'message' => 'Bill successfully paid'
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
+            ], 500);
         }
-        if (!Hash::check($request->password, $user->password)) return response()->json(['success' => false, 'message' => 'Contraseña invalida'], 422);
-        $emitter = Account::where('aco_number', $request->account_emitter)->where('aco_user_table', 'juristic_users')->first();
-
-        if (!$user || !$user->get('id') || $user->id != $emitter->aco_user) {
-            return response()->json(['success' => false, 'message' => 'You dont are the owner of the emitter account'], 422);
-        }
-
-        //validate bill
-        $bill = Bill::where('bil_receiver', $user->jusr_rif)->where('bil_ref_code', $request->bill_ref_cod)->first();
-        if (!$bill) return response()->json(['success' => false, 'message' => 'The bill dont exist'], 422);
-        if ($bill->bil_status != 0) return response()->json(['success' => false, 'message' => 'The bill has been already pay'], 422);
-
-        //validate emitter and receiver account
-        if ($bill->bil_amount > $emitter->aco_balance) return response()->json(['success' => false, 'message' => 'You dont have enough money'], 422);
-        if ($emitter->aco_status == 0) return response()->json(['success' => false, 'message' => 'The account is blocked up'], 422);
-        $receiver = Account::find($request->account_receiver);
-        if ($receiver->aco_status == 0) {
-            return response()->json(['success' => false, 'message' => 'You cant transfer to a blocked up account'], 422);
-        }
-
-        DB::beginTransaction();
-
-        $emitter->aco_balance -= $bill->bil_amount;
-        $emitter->save();
-        $receiver->aco_balance += $bill->bil_amount;
-        $receiver->save();
-        $transfer = new Transfer([
-            'tra_account_emitter' => $request->account_emitter,
-            'tra_account_receiver' => $request->account_receiver,
-            'tra_description' => $request->get('description'),
-            'tra_amount' => $bill->bil_amount,
-            'tra_status' => 1,
-            'tra_client_ip' => $request->ip()
-        ]);
-        $transfer->save();
-        $bill->bil_transfer = $transfer->tra_number;
-        $bill->bil_paydate = Carbon::now()->format('Y-m-d');
-        $bill->bil_status = 1;
-        $bill->save();
-        Audit::saveAudit($user->id, 'juristic_users', $bill->bil_id, 'bills', 'pay', $request->ip());
-        $receiver = JuristicUser::where('jusr_rif', $bill->bil_emitter)->first();
-
-        DB::commit();
-
-        Mail::send([], [], function ($message) use ($receiver, $bill) {
-            $message->from('banco1enlinea@gmail.com', 'Banco 1')
-                ->replyTo('banco1enlinea@gmail.com', 'Banco 1')
-                ->to($receiver->jusr_email)->subject('Banco 1 Siempre Contigo')
-                ->setBody('Se ha pagado su factura con codigo de referencia ' . $bill->bil_ref_code);
-        });
-
-        return response()->json([
-            'success' => true, 'message' => 'Bill successfully paid'
-        ], 200);
-        // } catch (\Throwable $e) {
-        //     DB::rollBack();
-        //     return response()->json([
-        //         'success' => false, 'message' => 'An error has occurred, please try again later', 'exception' => $e
-        //     ], 500);
-        // }
     }
 
     public function getBills(Request $request)
