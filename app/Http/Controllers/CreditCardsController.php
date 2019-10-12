@@ -266,9 +266,8 @@ class CreditCardsController extends BaseController
             $account = Account::where('aco_number', $request->account)->where('aco_user', $user->id)
                                 ->where('aco_user_table', 'users')->first();
             //validate password
-            $password = DB::table('users')->select('password')->where('id', $account->aco_user)
-                            ->where('password', $request->password)->first();
-            if (!$password) return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
+            $password = DB::table('users')->select('password')->where('id', $account->aco_user)->first();
+            if (!Hash::check($request->password, $password->password)) return response()->json(['success' => false, 'message' => 'The password is incorrect'], 422);
             
             //validate account
             if ($account->aco_balance < $request->amount) return response()->json(['success' => false, 'message' => 'You dont have enough money in this account'], 422);
