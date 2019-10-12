@@ -21,13 +21,14 @@ use \Firebase\JWT\JWT;
 
 class AuthController extends BaseController
 {
-    public function generateTDC($user, $request){
+    public function generateTDC($user, $request)
+    {
         $digits = 17;
         do {
-            $number = "001" . strval(random_int(pow(10, $digits-1), pow(10, $digits)-1));
-            $cvv = random_int(pow(10, 3-1), pow(10, 3)-1);
+            $number = "001" . strval(random_int(pow(10, $digits - 1), pow(10, $digits) - 1));
+            $cvv = random_int(pow(10, 3 - 1), pow(10, 3) - 1);
         } while (CreditCard::find($number) || CreditCard::where('cc_cvv', $cvv)->first());
-        
+
         $limit = rand(200000, 1000000);
         $tdc = new CreditCard([
             'cc_number' => $number,
@@ -43,16 +44,17 @@ class AuthController extends BaseController
         $tdc->save();
         Audit::saveAudit($user->id, 'users', $number, 'credit_cards', 'create', $request->ip());
     }
-    public function generateAccount($user, $request){
+    public function generateAccount($user, $request)
+    {
         $digits = 17;
         do {
-            $number = "001" . strval(random_int(pow(10, $digits-1), pow(10, $digits)-1));
+            $number = "001" . strval(random_int(pow(10, $digits - 1), pow(10, $digits) - 1));
         } while (Account::find($number));
-        
+
         $account = new Account([
             'aco_number' => $number,
             'aco_user' => $user->id,
-            'aco_user_table' => isset($user->user_ci) ? 'users':'juristic_users',
+            'aco_user_table' => isset($user->user_ci) ? 'users' : 'juristic_users',
             'aco_balance' => 0,
             'aco_type' => isset($user->type) ? $user->type : 3,
             'aco_status' => 1,
@@ -96,7 +98,7 @@ class AuthController extends BaseController
 
             $jwt = JWT::encode($token, $key);
             $authclient = new AuthClient([
-                'user_id'   =>  isset($user->user_ci) ? $user->user_ci:$user->jusr_rif,
+                'user_id'   =>  isset($user->user_ci) ? $user->user_ci : $user->jusr_rif,
                 'secret'    =>  $key,
                 'client_url'    =>  $request->root(),
                 'ip'    => $request->ip(),
@@ -106,7 +108,7 @@ class AuthController extends BaseController
             $authclient->save();
             $accesstoken = new AccessToken([
                 'client_id' =>  $authclient->id,
-                'user_id'   =>  isset($user->user_ci) ? $user->user_ci:$user->jusr_rif,
+                'user_id'   =>  isset($user->user_ci) ? $user->user_ci : $user->jusr_rif,
                 'token' =>  $jwt,
                 'revoked'   =>  0
             ]);
@@ -115,8 +117,8 @@ class AuthController extends BaseController
             //Guardamos el usuario
             $user->save();
             $this->generateAccount($user, $request);
-            if(isset($user->user_ci)) $this->generateTDC($user, $request);
-            
+            if (isset($user->user_ci)) $this->generateTDC($user, $request);
+
             DB::commit();
             return response()->json([
                 'success'   => true,
@@ -235,13 +237,15 @@ class AuthController extends BaseController
                         $message->to($jusr_user->jusr_email, $jusr_user->jusr_company)->subject('Confirma tu cuenta');
                     });
                 }
-                $url = env('CLIENT_URL') . 'confirm-account/' . $user->activation_token;
-                $data = array('first_name' => $user->first_name, 'middle_name' => $user->middle_name, 'first_surname' => $user->first_surname, 'second_surname' => $user->second_surname, 'url' => $url, 'client_url' => env('CLIENT_URL'));
-                Mail::send('emails.usr_activation', $data, function ($message) use ($user) {
-                    $message->from(env('MAIL_USERNAME'), 'Banco 1');
-                    $message->replyTo(env('MAIL_USERNAME'), 'Banco 1');
-                    $message->to($user->email, $user->first_name . ' ' . $user->first_surname)->subject('Confirma tu cuenta');
-                });
+                if(!$check){
+                    $url = env('CLIENT_URL') . 'confirm-account/' . $user->activation_token;
+                    $data = array('first_name' => $user->first_name, 'middle_name' => $user->middle_name, 'first_surname' => $user->first_surname, 'second_surname' => $user->second_surname, 'url' => $url, 'client_url' => env('CLIENT_URL'));
+                    Mail::send('emails.usr_activation', $data, function ($message) use ($user) {
+                        $message->from(env('MAIL_USERNAME'), 'Banco 1');
+                        $message->replyTo(env('MAIL_USERNAME'), 'Banco 1');
+                        $message->to($user->email, $user->first_name . ' ' . $user->first_surname)->subject('Confirma tu cuenta');
+                    });
+                }
             } catch (Swift_TransportException $a) {
                 DB::rollBack();
                 return response()->json([
@@ -250,6 +254,11 @@ class AuthController extends BaseController
                     'exception' => $a
                 ], 500);
             }
+            DB::commit();
+            return response()->json([
+                'success'   => true,
+                'message' => 'Se ha registrado correctamente, solo falta confirmación de su correo electrónico'
+            ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json([
@@ -258,21 +267,16 @@ class AuthController extends BaseController
                 'exception' => $e
             ], 500);
         }
-        DB::commit();
-        return response()->json([
-            'success'   => true,
-            'message' => 'Se ha registrado correctamente, solo falta confirmación de su correo electrónico'
-        ], 200);
     }
 
     public function getToken($user, $request)
     {
-        $matchThese = ['user_id' => isset($user->user_ci) ? $user->user_ci:$user->jusr_rif, 'client_url' => $request->root(), 'ip' => $request->ip(), 'revoked' => 0];
+        $matchThese = ['user_id' => isset($user->user_ci) ? $user->user_ci : $user->jusr_rif, 'client_url' => $request->root(), 'ip' => $request->ip(), 'revoked' => 0];
         $authclient = AuthClient::where($matchThese)->first();
         if (!$authclient) {
             $key = $this->generateRandomString();
             $authclient = new AuthClient([
-                'user_id'   =>  isset($user->user_ci) ? $user->user_ci:$user->jusr_rif,
+                'user_id'   =>  isset($user->user_ci) ? $user->user_ci : $user->jusr_rif,
                 'secret'    =>  $key,
                 'client_url'    => $request->root(),
                 'ip'    =>  $request->ip(),
@@ -340,7 +344,7 @@ class AuthController extends BaseController
 
             $accesstoken = new AccessToken([
                 'client_id' =>  $key['auth_id'],
-                'user_id'   =>  isset($user->user_ci) ? $user->user_ci:$user->jusr_rif,
+                'user_id'   =>  isset($user->user_ci) ? $user->user_ci : $user->jusr_rif,
                 'token' =>  $jwt,
                 'revoked'   =>  0
             ]);
@@ -368,7 +372,7 @@ class AuthController extends BaseController
     {
         $user = $request->get('user');
         try {
-            $matchThese = ['user_id' => isset($user->user_ci) ? $user->user_ci:$user->jusr_rif , 'ip' => $request->ip(), 'client_url' => $request->root(), 'revoked' => 0];
+            $matchThese = ['user_id' => isset($user->user_ci) ? $user->user_ci : $user->jusr_rif, 'ip' => $request->ip(), 'client_url' => $request->root(), 'revoked' => 0];
             $client = AuthClient::where($matchThese)->first();
             $tokenUpdate = AccessToken::where('client_id', $client->id)->update(['revoked' => 1]);
             return response()->json(['success' => true, 'message' => 'Sesión terminada', 'cont' =>  $tokenUpdate]);
