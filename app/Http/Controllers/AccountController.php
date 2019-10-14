@@ -105,7 +105,7 @@ class AccountController extends BaseController
 
             $account->save();
 
-            Audit::saveAudit($user->id, 3, $number, 'accounts', 'update', $request->ip());
+            Audit::saveAudit($user->id, 3, $request->number, 'accounts', 'update', $request->ip());
             
             DB::commit();
 

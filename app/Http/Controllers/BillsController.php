@@ -28,18 +28,18 @@ class BillsController extends BaseController
     {
         try {
             $user = $request->get('user');
-            $refcode = isset($request->refcode) ? $request->refcode : $this->generateRefCode();
+            $refcode = isset($request->bill_ref_cod) ? $request->bill_ref_cod : $this->generateRefCode();
             $rules = [
                 'emitter' => 'required|string|exists:juristic_users,jusr_rif',
                 'receiver' => 'required|string|exists:juristic_users,jusr_rif',
-                // 'refcode' => 'required|string',
+                'bill_ref_code' => 'string',
                 'amount' => 'required|numeric',
                 // 'paydate' => 'required|date',
                 'expdate' => 'required|date',
-                'password' => 'required|string'
+                'password' => 'string'
             ];
             $errors = $this->validateRequest($request, $rules);
-            if (!Hash::check($request->password, $user->password)) return response()->json(['success' => false, 'message' => 'Contraseña invalida'], 422);
+            if (isset($request->password) && !Hash::check($request->password, $user->password)) return response()->json(['success' => false, 'message' => 'Contraseña invalida'], 422);
             if (count($errors)) {
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }

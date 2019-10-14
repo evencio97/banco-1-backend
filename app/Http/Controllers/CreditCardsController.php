@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Mail;
 use App\User;
 use App\Audit;
 use App\Account;
@@ -12,6 +13,7 @@ use App\CreditCard;
 use App\CreditCardPayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class CreditCardsController extends BaseController
 {
@@ -312,9 +314,11 @@ class CreditCardsController extends BaseController
 
     public function purchase(Request $request){
         try {
+            $user = $request->get('user');
             $rules = [
+                'opt_ci' => 'required|string',
+                'usr_ci' => 'required|string',
                 'number' => 'required|string',
-                'rif' => 'required|string|exists:juristic_users,jusr_rif',
                 'cvv' => 'required|integer',
                 'name' => 'required|string',
                 'lastname' => 'required|string',
@@ -326,7 +330,7 @@ class CreditCardsController extends BaseController
                 return response()->json(['success' => false, 'message' => $this->getMessagesErrors($errors)], 422);
             }
             $account = Account::where('aco_user_table', 'juristic_users')->join('juristic_users', 'juristic_users.id', '=', 'accounts.aco_user')
-                                ->where('juristic_users.jusr_rif', $request->rif)->first();
+                                ->where('juristic_users.jusr_rif', $user->jusr_rif)->first();
             if (!$account) return response()->json(['success' => false, 'message' => 'The rif doesnt have any associated account'], 422);
             if ($account->aco_status != 1) return response()->json(['success' => false, 'message' => 'The account isnt active'], 422);            
             if ($request->amount < 1) return response()->json(['success' => false, 'message' => 'The amount of the purchases is invalid'], 422);
@@ -354,10 +358,11 @@ class CreditCardsController extends BaseController
     public function sameBankPurchase(Request $request, $account){
         try {
             //validate tdc
-            $tdc = CreditCard::where('cc_number', $request->number)->join('users', 'users.id', '=', 'cc_user')->first();
+            $user_ci = strtoupper($request->opt_ci) . $request->user_ci;
+            $tdc = CreditCard::where('cc_number', $request->number)->join('users', 'users.id', '=', 'cc_user')->where('users.user_ci', $user_ci)->first();
             if (!$tdc) return response()->json(['success' => false, 'message' => 'The credit card dont exists'], 422); 
             if ($tdc->cc_cvv != $request->cvv) return response()->json(['success' => false, 'message' => 'The cvv code is incorrect'], 422); 
-            if ($tdc->exp_date != $request->expdate) return response()->json(['success' => false, 'message' => 'The expiration date is incorrect'], 422); 
+            if ($tdc->cc_exp_date != $request->expdate) return response()->json(['success' => false, 'message' => 'The expiration date is incorrect'], 422); 
             if ($tdc->name != $request->first_name || $tdc->lastname != $request->first_surname) return response()->json(['success' => false, 'message' => 'The name or lastname is incorrect'], 422); 
             if (($tdc->cc_limit - $tdc->cc_balance) < $request->amount) return response()->json(['success' => false, 'message' => 'The credit card doesnt have enough money'], 422); 
             
@@ -368,7 +373,7 @@ class CreditCardsController extends BaseController
             $account->aco_balance += $request->amount;
             $account->save();
             $purchase = new Purchases([
-                'pur_credit_card' => $tdc->cc_number, 
+                'pur_creditcard' => $tdc->cc_number, 
                 'pur_business' => $account->jusr_rif,
                 'pur_amount' => $request->amount,
                 'pur_description' => $request->get('description'),
