@@ -6,3 +6,7 @@
 <p align="center">
     <a href="https://evenciohernandez.com.ve/">Evencio Hernández</a> & Danny Caldeira
 </p>
+
+# Banco1 API
+
+This project was generated with Laravel 6 and PHP 7.2
